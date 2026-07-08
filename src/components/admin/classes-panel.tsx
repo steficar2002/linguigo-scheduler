@@ -14,6 +14,7 @@ import {
   deleteClassAction,
   updateClassAction,
 } from "@/app/admin/classes/actions";
+import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -191,30 +192,28 @@ export function ClassesPanel({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Classes</h1>
-          <p className="text-sm text-muted-foreground">
-            Schedule classes and attach PDF materials.
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button />}>Schedule class</DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Schedule class</DialogTitle>
-            </DialogHeader>
-            <ClassForm
-              teachers={teachers}
-              students={students}
-              courseTypes={courseTypes}
-              onSubmit={handleCreate}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <PageHeader
+        title="Classes"
+        description="Schedule classes and attach PDF materials."
+        action={
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger render={<Button />}>Schedule class</DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Schedule class</DialogTitle>
+              </DialogHeader>
+              <ClassForm
+                teachers={teachers}
+                students={students}
+                courseTypes={courseTypes}
+                onSubmit={handleCreate}
+              />
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

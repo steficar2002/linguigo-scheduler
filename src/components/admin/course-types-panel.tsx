@@ -8,6 +8,7 @@ import {
   deleteCourseTypeAction,
   updateCourseTypeAction,
 } from "@/app/admin/course-types/actions";
+import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,25 +99,23 @@ export function CourseTypesPanel({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Course Types</h1>
-          <p className="text-sm text-muted-foreground">
-            Define the types of classes you schedule.
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button />}>Add course type</DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add course type</DialogTitle>
-            </DialogHeader>
-            <CourseTypeForm onSubmit={handleCreate} />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <PageHeader
+        title="Course Types"
+        description="Define the types of classes you schedule."
+        action={
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger render={<Button />}>Add course type</DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add course type</DialogTitle>
+              </DialogHeader>
+              <CourseTypeForm onSubmit={handleCreate} />
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

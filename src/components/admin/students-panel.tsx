@@ -8,6 +8,7 @@ import {
   deleteStudentAction,
   updateStudentAction,
 } from "@/app/admin/students/actions";
+import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,25 +105,23 @@ export function StudentsPanel({ students }: { students: Student[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Students</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage students scheduled for classes.
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button />}>Add student</DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add student</DialogTitle>
-            </DialogHeader>
-            <StudentForm onSubmit={handleCreate} />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <PageHeader
+        title="Students"
+        description="Manage students scheduled for classes."
+        action={
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger render={<Button />}>Add student</DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add student</DialogTitle>
+              </DialogHeader>
+              <StudentForm onSubmit={handleCreate} />
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

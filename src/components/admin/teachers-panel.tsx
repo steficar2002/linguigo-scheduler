@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Profile } from "@/lib/types/database";
+import type { TeacherWithPendingCount } from "@/lib/types/database";
 import {
   createTeacherAction,
   deactivateTeacherAction,
   updateTeacherAction,
 } from "@/app/admin/teachers/actions";
+import Link from "next/link";
+import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,9 +30,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export function TeachersPanel({ teachers }: { teachers: Profile[] }) {
+export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[] }) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<Profile | null>(null);
+  const [editing, setEditing] = useState<TeacherWithPendingCount | null>(null);
 
   async function handleCreate(formData: FormData) {
     const result = await createTeacherAction(formData);
@@ -65,37 +67,35 @@ export function TeachersPanel({ teachers }: { teachers: Profile[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Teachers</h1>
-          <p className="text-sm text-muted-foreground">
-            Invite and manage teacher accounts.
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button />}>Add teacher</DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Invite teacher</DialogTitle>
-            </DialogHeader>
-            <form action={handleCreate} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Full name</Label>
-                <Input id="full_name" name="full_name" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required />
-              </div>
-              <Button type="submit" className="w-full">
-                Send invite
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <PageHeader
+        title="Teachers"
+        description="Invite and manage teacher accounts."
+        action={
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger render={<Button />}>Add teacher</DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Invite teacher</DialogTitle>
+              </DialogHeader>
+              <form action={handleCreate} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full name</Label>
+                  <Input id="full_name" name="full_name" required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" name="email" type="email" required />
+                </div>
+                <Button type="submit" className="w-full">
+                  Send invite
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -115,7 +115,17 @@ export function TeachersPanel({ teachers }: { teachers: Profile[] }) {
             ) : (
               teachers.map((teacher) => (
                 <TableRow key={teacher.id}>
-                  <TableCell>{teacher.full_name || "—"}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-2">
+                      {teacher.pending_request_count > 0 ? (
+                        <span
+                          className="size-2.5 shrink-0 rounded-full bg-red-500"
+                          title={`${teacher.pending_request_count} pending reschedule request${teacher.pending_request_count === 1 ? "" : "s"}`}
+                        />
+                      ) : null}
+                      {teacher.full_name || "—"}
+                    </span>
+                  </TableCell>
                   <TableCell>{teacher.email}</TableCell>
                   <TableCell>
                     <Badge variant={teacher.is_active ? "default" : "secondary"}>
@@ -124,6 +134,19 @@ export function TeachersPanel({ teachers }: { teachers: Profile[] }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        nativeButton={false}
+                        render={
+                          <Link
+                            href={`/admin/teachers/${teacher.id}/schedule`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        }
+                      >
+                        Schedule
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"

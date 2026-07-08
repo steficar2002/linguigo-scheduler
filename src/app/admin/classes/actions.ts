@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { removeClassMaterial, uploadClassMaterial } from "@/lib/storage";
 
 const classSchema = z
   .object({
@@ -16,32 +17,6 @@ const classSchema = z
     message: "End time must be after start time.",
     path: ["ends_at"],
   });
-
-async function uploadMaterial(
-  classId: string,
-  file: File
-): Promise<{ path?: string; error?: string }> {
-  if (file.size === 0) {
-    return {};
-  }
-
-  if (file.type !== "application/pdf") {
-    return { error: "Only PDF files are allowed." };
-  }
-
-  const supabase = await createClient();
-  const path = `${classId}/${file.name}`;
-
-  const { error } = await supabase.storage
-    .from("class-materials")
-    .upload(path, file, { upsert: true, contentType: "application/pdf" });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { path };
-}
 
 export async function createClassAction(formData: FormData) {
   const parsed = classSchema.safeParse({
@@ -75,7 +50,7 @@ export async function createClassAction(formData: FormData) {
 
   const file = formData.get("material") as File | null;
   if (file && file.size > 0) {
-    const upload = await uploadMaterial(created.id, file);
+    const upload = await uploadClassMaterial(created.id, file);
     if (upload.error) {
       return { error: upload.error };
     }
@@ -88,6 +63,8 @@ export async function createClassAction(formData: FormData) {
   }
 
   revalidatePath("/admin/classes");
+  revalidatePath(`/admin/teachers/${parsed.data.teacher_id}/schedule`);
+  revalidatePath("/teacher/schedule");
   return { success: true };
 }
 
@@ -120,7 +97,7 @@ export async function updateClassAction(formData: FormData) {
 
   const file = formData.get("material") as File | null;
   if (file && file.size > 0) {
-    const upload = await uploadMaterial(id, file);
+    const upload = await uploadClassMaterial(id, file);
     if (upload.error) {
       return { error: upload.error };
     }
@@ -136,6 +113,8 @@ export async function updateClassAction(formData: FormData) {
   }
 
   revalidatePath("/admin/classes");
+  revalidatePath(`/admin/teachers/${parsed.data.teacher_id}/schedule`);
+  revalidatePath("/teacher/schedule");
   return { success: true };
 }
 
@@ -149,7 +128,7 @@ export async function deleteClassAction(formData: FormData) {
   const supabase = await createClient();
   const { data: classRow } = await supabase
     .from("classes")
-    .select("material_path")
+    .select("material_path, teacher_id")
     .eq("id", id)
     .single();
 
@@ -160,11 +139,13 @@ export async function deleteClassAction(formData: FormData) {
   }
 
   if (classRow?.material_path) {
-    await supabase.storage
-      .from("class-materials")
-      .remove([classRow.material_path]);
+    await removeClassMaterial(classRow.material_path);
   }
 
   revalidatePath("/admin/classes");
+  if (classRow?.teacher_id) {
+    revalidatePath(`/admin/teachers/${classRow.teacher_id}/schedule`);
+  }
+  revalidatePath("/teacher/schedule");
   return { success: true };
 }

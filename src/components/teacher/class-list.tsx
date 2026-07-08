@@ -1,6 +1,6 @@
 "use client";
 
-import type { ClassWithRelations } from "@/lib/types/database";
+import type { ScheduleClass } from "@/lib/types/database";
 import { formatClassTime } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,21 +12,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export type TeacherClass = ClassWithRelations & {
-  materialUrl: string | null;
-};
-
-export function ClassList({ classes }: { classes: TeacherClass[] }) {
+export function ClassList({ classes }: { classes: ScheduleClass[] }) {
   if (classes.length === 0) {
     return (
-      <p className="rounded-lg border p-6 text-sm text-muted-foreground">
+      <p className="rounded-xl border border-border/60 bg-card p-8 text-center text-sm text-muted-foreground shadow-sm">
         No upcoming classes scheduled.
       </p>
     );
   }
 
   return (
-    <div className="rounded-lg border">
+    <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
       <Table>
         <TableHeader>
           <TableRow>
@@ -49,6 +45,7 @@ export function ClassList({ classes }: { classes: TeacherClass[] }) {
                   <Button
                     size="sm"
                     variant="outline"
+                    nativeButton={false}
                     render={
                       <a
                         href={classItem.materialUrl}

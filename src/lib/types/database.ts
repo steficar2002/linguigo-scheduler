@@ -44,3 +44,55 @@ export type ClassWithRelations = Class & {
   course_type: Pick<CourseType, "name"> | null;
   teacher: Pick<Profile, "full_name"> | null;
 };
+
+export type ScheduleEventType = "created" | "rescheduled" | "cancelled";
+
+export type ClassScheduleEvent = {
+  id: string;
+  class_id: string | null;
+  teacher_id: string;
+  event_type: ScheduleEventType;
+  student_id: string | null;
+  course_type_id: string | null;
+  old_starts_at: string | null;
+  old_ends_at: string | null;
+  new_starts_at: string | null;
+  new_ends_at: string | null;
+  changed_by: string;
+  note: string | null;
+  created_at: string;
+};
+
+export type ClassScheduleEventWithRelations = ClassScheduleEvent & {
+  student: Pick<Student, "full_name"> | null;
+  course_type: Pick<CourseType, "name"> | null;
+  changed_by_profile: Pick<Profile, "full_name"> | null;
+};
+
+export type ScheduleClass = ClassWithRelations & {
+  materialUrl?: string | null;
+};
+
+export type RescheduleRequestStatus = "pending" | "approved" | "denied";
+
+export type RescheduleRequest = {
+  id: string;
+  class_id: string;
+  teacher_id: string;
+  status: RescheduleRequestStatus;
+  requested_at: string;
+  requested_starts_at: string | null;
+  requested_ends_at: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RescheduleRequestWithClass = RescheduleRequest & {
+  class: ScheduleClass | null;
+};
+
+export type TeacherWithPendingCount = Profile & {
+  pending_request_count: number;
+};

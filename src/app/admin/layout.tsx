@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { FadeIn } from "@/components/ui/fade-in";
 
 export default async function AdminLayout({
   children,
@@ -9,9 +10,11 @@ export default async function AdminLayout({
   await requireRole("admin");
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-full flex-col bg-muted/30">
       <AdminNav />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+        <FadeIn>{children}</FadeIn>
+      </main>
     </div>
   );
 }

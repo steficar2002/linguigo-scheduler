@@ -4,8 +4,18 @@ export function toDatetimeLocalValue(iso: string) {
   return format(parseISO(iso), "yyyy-MM-dd'T'HH:mm");
 }
 
+export function toDatetimeLocalValueFromDate(date: Date) {
+  return format(date, "yyyy-MM-dd'T'HH:mm");
+}
+
 export function formatClassTime(startsAt: string, endsAt: string) {
   const start = parseISO(startsAt);
   const end = parseISO(endsAt);
   return `${format(start, "EEE, MMM d · h:mm a")} – ${format(end, "h:mm a")}`;
+}
+
+export function formatTimeRange(startsAt: string, endsAt: string) {
+  const start = parseISO(startsAt);
+  const end = parseISO(endsAt);
+  return `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
 }
