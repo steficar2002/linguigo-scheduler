@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Linguigo Scheduler
 
-## Getting Started
+Internal Next.js tool for scheduling Linguigo classes. Admins manage teachers, students, course types, and class schedules with optional PDF materials. Teachers see a read-only view of their own upcoming classes.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router)
+- Supabase (Auth, Postgres, Storage, RLS)
+- Netlify deployment
+
+## Setup
+
+### 1. Supabase
+
+1. Create a Supabase project.
+2. Link the project and apply migrations:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+supabase link --project-ref <your-project-ref>
+supabase db push
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or run the SQL in [`supabase/migrations/001_initial_schema.sql`](supabase/migrations/001_initial_schema.sql) in the Supabase SQL editor.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.local.example` to `.env.local` and fill in:
 
-## Learn More
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only — never expose to the browser)
+- `NEXT_PUBLIC_SITE_URL` (e.g. `http://localhost:3000` or your Netlify URL)
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Bootstrap the first admin
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Enable email signup in Supabase Auth (or invite yourself).
+2. Sign up / log in once through the app.
+3. Promote your account in the Supabase SQL editor:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```sql
+UPDATE profiles SET role = 'admin' WHERE email = 'you@example.com';
+```
 
-## Deploy on Vercel
+### 4. Run locally
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000).
+
+## Roles
+
+| Role | Access |
+|------|--------|
+| Admin | Full CRUD on teachers, students, course types, and classes |
+| Teacher | Read-only list/calendar of own upcoming classes + PDF links |
+
+## Netlify deployment
+
+1. Push this repo to GitHub.
+2. Create a new site in Netlify and connect the repository.
+3. Set the same environment variables in Netlify site settings.
+4. Deploy — Netlify auto-detects Next.js via OpenNext.
+
+## Project structure
+
+```
+src/app/(admin)/     Admin CRUD pages
+src/app/(teacher)/   Teacher schedule
+src/app/(auth)/      Login
+src/lib/supabase/    Supabase clients
+supabase/migrations/ Database schema + RLS
+```
