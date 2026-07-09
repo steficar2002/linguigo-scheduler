@@ -1,10 +1,31 @@
+import { addDays } from "date-fns";
+import { attachMaterialUrls } from "@/lib/class-materials";
+import { requireRole } from "@/lib/auth";
+import { parseWeekParam } from "@/lib/schedule";
 import { createClient } from "@/lib/supabase/server";
-import { TeachersPanel } from "@/components/admin/teachers-panel";
-import type { TeacherWithPendingCount } from "@/lib/types/database";
+import { GlobalSchedulePanel } from "@/components/admin/global-schedule-panel";
+import type { RescheduleRequest, ScheduleClass, TeacherWithPendingCount } from "@/lib/types/database";
 
-export default async function TeachersPage() {
+type PageProps = {
+  searchParams: Promise<{ week?: string }>;
+};
+
+export default async function TeachersPage({ searchParams }: PageProps) {
+  await requireRole("admin");
+  const { week } = await searchParams;
   const supabase = await createClient();
-  const [{ data: teachers }, { data: pendingRequests }] = await Promise.all([
+
+  const weekStart = parseWeekParam(week);
+  const rangeStart = addDays(weekStart, -7);
+  const rangeEnd = addDays(weekStart, 20);
+
+  const [
+    { data: teachers },
+    { data: pendingRequests },
+    { data: classes },
+    { data: students },
+    { data: courseTypes },
+  ] = await Promise.all([
     supabase
       .from("profiles")
       .select("*")
@@ -12,8 +33,18 @@ export default async function TeachersPage() {
       .order("full_name"),
     supabase
       .from("reschedule_requests")
-      .select("teacher_id")
+      .select("*")
       .eq("status", "pending"),
+    supabase
+      .from("classes")
+      .select(
+        "*, student:students(full_name), course_type:course_types(name), teacher:profiles!classes_teacher_id_fkey(full_name)"
+      )
+      .gte("starts_at", rangeStart.toISOString())
+      .lte("starts_at", rangeEnd.toISOString())
+      .order("starts_at"),
+    supabase.from("students").select("*").order("full_name"),
+    supabase.from("course_types").select("*").order("name"),
   ]);
 
   const countByTeacher = new Map<string, number>();
@@ -31,5 +62,28 @@ export default async function TeachersPage() {
     })
   );
 
-  return <TeachersPanel teachers={teachersWithCounts} />;
+  const { data: allClasses } = await supabase
+    .from("classes")
+    .select(
+      "*, student:students(full_name), course_type:course_types(name), teacher:profiles!classes_teacher_id_fkey(full_name)"
+    )
+    .gte("starts_at", addDays(weekStart, -30).toISOString())
+    .lte("starts_at", addDays(weekStart, 44).toISOString())
+    .order("starts_at");
+
+  const classesWithMaterials = await attachMaterialUrls(
+    (allClasses ?? classes ?? []) as ScheduleClass[]
+  );
+  const visibleClasses = await attachMaterialUrls((classes ?? []) as ScheduleClass[]);
+
+  return (
+    <GlobalSchedulePanel
+      teachers={teachersWithCounts}
+      classes={visibleClasses}
+      allClasses={classesWithMaterials}
+      students={students ?? []}
+      courseTypes={courseTypes ?? []}
+      pendingRequests={(pendingRequests ?? []) as RescheduleRequest[]}
+    />
+  );
 }

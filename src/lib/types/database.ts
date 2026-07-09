@@ -1,11 +1,15 @@
 export type UserRole = "admin" | "teacher";
 
+export type ClassOutcome = "scheduled" | "completed" | "missed";
+
 export type Profile = {
   id: string;
   email: string;
   full_name: string;
   role: UserRole;
   is_active: boolean;
+  avatar_path: string | null;
+  salary_per_hour: number;
   created_at: string;
   updated_at: string;
 };
@@ -35,6 +39,7 @@ export type Class = {
   starts_at: string;
   ends_at: string;
   material_path: string | null;
+  outcome: ClassOutcome;
   created_at: string;
   updated_at: string;
 };
@@ -95,4 +100,18 @@ export type RescheduleRequestWithClass = RescheduleRequest & {
 
 export type TeacherWithPendingCount = Profile & {
   pending_request_count: number;
+};
+
+export type TeacherStatsPeriod = {
+  total: number;
+  successful: number;
+  missed: number;
+  payment: number;
+};
+
+export type TeacherStats = {
+  today: TeacherStatsPeriod;
+  yesterday: TeacherStatsPeriod;
+  pastWeek: TeacherStatsPeriod;
+  pastMonth: TeacherStatsPeriod;
 };

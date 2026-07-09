@@ -11,7 +11,6 @@ const links = [
   { href: "/admin/teachers", label: "Teachers" },
   { href: "/admin/students", label: "Students" },
   { href: "/admin/course-types", label: "Course Types" },
-  { href: "/admin/classes", label: "Classes" },
 ];
 
 export function AdminNav() {
@@ -29,7 +28,7 @@ export function AdminNav() {
                 href={link.href}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm transition-all duration-200",
-                  pathname === link.href
+                  pathname === link.href || pathname.startsWith(`${link.href}/`)
                     ? "bg-primary/10 font-medium text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
@@ -52,7 +51,7 @@ export function AdminNav() {
             href={link.href}
             className={cn(
               "shrink-0 rounded-lg px-3 py-1.5 text-xs transition-all duration-200",
-              pathname === link.href
+              pathname === link.href || pathname.startsWith(`${link.href}/`)
                 ? "bg-primary/10 font-medium text-primary"
                 : "text-muted-foreground hover:bg-muted"
             )}

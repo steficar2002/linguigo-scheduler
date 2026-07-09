@@ -3,44 +3,40 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type LogoProps = {
-  showText?: boolean;
   size?: "sm" | "md" | "lg";
   href?: string;
+  centered?: boolean;
   className?: string;
 };
 
-const sizes = {
-  sm: { icon: 28, text: "text-sm" },
-  md: { icon: 36, text: "text-base" },
-  lg: { icon: 48, text: "text-lg" },
+const heights = {
+  sm: "h-10",
+  md: "h-14",
+  lg: "h-20",
 };
 
 export function Logo({
-  showText = true,
   size = "md",
   href,
+  centered = false,
   className,
 }: LogoProps) {
   const content = (
-    <div className={cn("flex items-center gap-2.5", className)}>
+    <div
+      className={cn(
+        "inline-flex items-center",
+        centered && "w-full justify-center",
+        className
+      )}
+    >
       <Image
         src="/logo.jpeg"
         alt="Linguigo"
-        width={sizes[size].icon}
-        height={sizes[size].icon}
-        className="rounded-lg"
-        priority
+        width={200}
+        height={300}
+        className={cn("w-auto object-contain", heights[size])}
+        priority={size === "lg"}
       />
-      {showText ? (
-        <span
-          className={cn(
-            "font-semibold tracking-tight text-foreground",
-            sizes[size].text
-          )}
-        >
-          LINGUIGO
-        </span>
-      ) : null}
     </div>
   );
 

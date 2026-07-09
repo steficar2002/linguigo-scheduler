@@ -1,20 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { format, setHours, setMinutes } from "date-fns";
+import { useRouter } from "next/navigation";
+import { format, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import type {
   CourseType,
+  Profile,
   RescheduleRequest,
   ScheduleClass,
   Student,
 } from "@/lib/types/database";
-import { formatTimeRange, formatClassTime, toDatetimeLocalValue } from "@/lib/dates";
+import { formatClassTime } from "@/lib/dates";
 import {
   buildWeeklyOccurrences,
   findRecurringOverlap,
   hasOverlapOnDay,
 } from "@/lib/schedule";
+import { formatTimeRangeInTimezone } from "@/lib/timezone";
+import {
+  buildClassTimesFromForm,
+  ClassTimeFields,
+} from "@/components/schedule/class-time-fields";
+import { ClassOutcomeActions } from "@/components/schedule/class-outcome-actions";
+import { isDayTodayOrPast } from "@/lib/class-outcomes";
+import { useDisplayTimezone } from "@/components/schedule/timezone-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +42,8 @@ type DayDetailDialogProps = {
   students: Student[];
   courseTypes: CourseType[];
   teacherId: string;
+  teachers?: Pick<Profile, "id" | "full_name">[];
+  showTeacherPicker?: boolean;
   pendingRequests: RescheduleRequest[];
   onClose: () => void;
   onCreate: (formData: FormData) => Promise<{ error?: string } | void>;
@@ -41,14 +53,6 @@ type DayDetailDialogProps = {
   onDenyRequest: (requestId: string) => Promise<{ error?: string } | void>;
 };
 
-function defaultStart(day: Date) {
-  return setMinutes(setHours(day, 9), 0);
-}
-
-function defaultEnd(day: Date) {
-  return setMinutes(setHours(day, 10), 0);
-}
-
 export function DayDetailDialog({
   day,
   classes,
@@ -56,6 +60,8 @@ export function DayDetailDialog({
   students,
   courseTypes,
   teacherId,
+  teachers = [],
+  showTeacherPicker = false,
   pendingRequests,
   onClose,
   onCreate,
@@ -64,36 +70,56 @@ export function DayDetailDialog({
   onApproveRequest,
   onDenyRequest,
 }: DayDetailDialogProps) {
+  const router = useRouter();
+  const timezone = useDisplayTimezone();
   const [adding, setAdding] = useState(false);
   const [rescheduling, setRescheduling] = useState<ScheduleClass | null>(null);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState(teacherId);
 
   if (!day) return null;
 
-  const dayLabel = format(day, "EEEE, d MMMM yyyy");
+  const scheduleDay = day;
+  const dayLabel = format(scheduleDay, "EEEE, d MMMM yyyy");
+  const isPastDay = scheduleDay < startOfDay(new Date());
+  const showOutcomeOnCreate = isDayTodayOrPast(scheduleDay);
   const pendingByClass = new Map(
-    pendingRequests.map((r) => [r.class_id, r])
+    pendingRequests.map((request) => [request.class_id, request])
   );
+  const effectiveTeacherId = showTeacherPicker ? selectedTeacherId : teacherId;
 
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    formData.set("teacher_id", teacherId);
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
 
-    const startsAt = new Date(String(formData.get("starts_at")));
-    const endsAt = new Date(String(formData.get("ends_at")));
-    const repeatWeeks = repeatWeekly
-      ? Math.min(52, Math.max(2, Number(formData.get("repeat_weeks") || 2)))
-      : 1;
-
-    if (endsAt <= startsAt) {
-      toast.error("End time must be after start time.");
+    if (!effectiveTeacherId) {
+      toast.error("Please select a teacher.");
       return;
     }
 
+    const times = buildClassTimesFromForm(formData, scheduleDay);
+    if (times.error) {
+      toast.error(times.error);
+      return;
+    }
+
+    formData.set("teacher_id", effectiveTeacherId);
+    formData.set("starts_at", times.starts_at);
+    formData.set("ends_at", times.ends_at);
+
+    const startsAt = new Date(times.starts_at);
+    const endsAt = new Date(times.ends_at);
+    const repeatWeeks =
+      !isPastDay && repeatWeekly
+        ? Math.min(52, Math.max(2, Number(formData.get("repeat_weeks") || 2)))
+        : 1;
+
     const occurrences = buildWeeklyOccurrences(startsAt, endsAt, repeatWeeks);
-    const overlapDate = findRecurringOverlap(allClasses, occurrences);
+    const teacherClasses = allClasses.filter(
+      (classItem) => classItem.teacher_id === effectiveTeacherId
+    );
+    const overlapDate = findRecurringOverlap(teacherClasses, occurrences);
 
     if (overlapDate) {
       toast.error(
@@ -102,7 +128,7 @@ export function DayDetailDialog({
       return;
     }
 
-    if (repeatWeekly) {
+    if (!isPastDay && repeatWeekly) {
       formData.set("repeat_enabled", "true");
       formData.set("repeat_weeks", String(repeatWeeks));
     }
@@ -112,6 +138,7 @@ export function DayDetailDialog({
       toast.error(result.error);
       return;
     }
+
     toast.success(
       repeatWeeks > 1
         ? `${repeatWeeks} classes scheduled.`
@@ -122,29 +149,40 @@ export function DayDetailDialog({
     onClose();
   }
 
-  async function handleReschedule(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleReschedule(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!rescheduling) return;
 
-    const formData = new FormData(e.currentTarget);
-    const startsAt = new Date(String(formData.get("starts_at")));
-    const endsAt = new Date(String(formData.get("ends_at")));
+    const formData = new FormData(event.currentTarget);
+    const times = buildClassTimesFromForm(formData, scheduleDay);
 
-    if (endsAt <= startsAt) {
-      toast.error("End time must be after start time.");
+    if (times.error) {
+      toast.error(times.error);
       return;
     }
 
-    if (hasOverlapOnDay(allClasses, startsAt, endsAt, rescheduling.id)) {
+    if (
+      hasOverlapOnDay(
+        allClasses.filter((c) => c.teacher_id === rescheduling.teacher_id),
+        new Date(times.starts_at),
+        new Date(times.ends_at),
+        rescheduling.id
+      )
+    ) {
       toast.error("This time overlaps with another class on the same day.");
       return;
     }
+
+    formData.set("id", rescheduling.id);
+    formData.set("starts_at", times.starts_at);
+    formData.set("ends_at", times.ends_at);
 
     const result = await onReschedule(formData);
     if (result?.error) {
       toast.error(result.error);
       return;
     }
+
     toast.success("Class rescheduled.");
     setRescheduling(null);
     onClose();
@@ -200,88 +238,105 @@ export function DayDetailDialog({
                   const pending = pendingByClass.get(classItem.id);
 
                   return (
-                  <div
-                    key={classItem.id}
-                    className="rounded-lg border border-border/60 p-3 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                    <div className="text-sm">
-                      <p className="font-medium">
-                        {classItem.student?.full_name ?? "Student"}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {classItem.course_type?.name ?? "Class"}
-                      </p>
-                      <p className="text-xs">
-                        {formatTimeRange(classItem.starts_at, classItem.ends_at)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setRescheduling(classItem)}
-                      >
-                        Reschedule
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(classItem.id)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                    </div>
-
-                    {pending ? (
-                      <div className="rounded-md border border-red-200 bg-red-50 p-3 space-y-2">
-                        <p className="text-sm font-medium text-red-900">
-                          Reschedule request
-                        </p>
-                        <p className="text-xs text-red-800">
-                          Teacher requested to move this class
-                          {pending.requested_starts_at && pending.requested_ends_at ? (
-                            <>
-                              {" to "}
-                              <span className="font-medium">
-                                {formatClassTime(
-                                  pending.requested_starts_at,
-                                  pending.requested_ends_at
-                                )}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              {" on "}
-                              {format(
-                                new Date(pending.requested_at),
-                                "d MMM yyyy 'at' HH:mm"
-                              )}
-                            </>
-                          )}
-                          .
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            disabled={resolvingId === pending.id}
-                            onClick={() => handleApprove(pending.id)}
-                          >
-                            {resolvingId === pending.id ? "Confirming…" : "Confirm"}
-                          </Button>
+                    <div
+                      key={classItem.id}
+                      className="space-y-3 rounded-lg border border-border/60 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-sm">
+                          {classItem.teacher?.full_name ? (
+                            <p className="font-medium text-primary/80">
+                              {classItem.teacher.full_name}
+                            </p>
+                          ) : null}
+                          <p className="font-medium">
+                            {classItem.student?.full_name ?? "Student"}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {classItem.course_type?.name ?? "Class"}
+                          </p>
+                          <p className="text-xs">
+                            {formatTimeRangeInTimezone(
+                              classItem.starts_at,
+                              classItem.ends_at,
+                              timezone
+                            )}
+                          </p>
+                          <p className="text-xs capitalize text-muted-foreground">
+                            {classItem.outcome}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={resolvingId === pending.id}
-                            onClick={() => handleDeny(pending.id)}
+                            onClick={() => setRescheduling(classItem)}
                           >
-                            Deny
+                            Reschedule
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(classItem.id)}
+                          >
+                            Remove
                           </Button>
                         </div>
                       </div>
-                    ) : null}
-                  </div>
+
+                      <ClassOutcomeActions
+                        classItem={classItem}
+                        onUpdated={() => router.refresh()}
+                      />
+
+                      {pending ? (
+                        <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3">
+                          <p className="text-sm font-medium text-red-900">
+                            Reschedule request
+                          </p>
+                          <p className="text-xs text-red-800">
+                            Teacher requested to move this class
+                            {pending.requested_starts_at && pending.requested_ends_at ? (
+                              <>
+                                {" to "}
+                                <span className="font-medium">
+                                  {formatClassTime(
+                                    pending.requested_starts_at,
+                                    pending.requested_ends_at
+                                  )}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                {" on "}
+                                {format(
+                                  new Date(pending.requested_at),
+                                  "d MMM yyyy 'at' HH:mm"
+                                )}
+                              </>
+                            )}
+                            .
+                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              disabled={resolvingId === pending.id}
+                              onClick={() => handleApprove(pending.id)}
+                            >
+                              {resolvingId === pending.id ? "Confirming…" : "Confirm"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={resolvingId === pending.id}
+                              onClick={() => handleDeny(pending.id)}
+                            >
+                              Deny
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
@@ -289,6 +344,25 @@ export function DayDetailDialog({
 
             {adding ? (
               <form onSubmit={handleCreate} className="space-y-3 border-t pt-4">
+                {showTeacherPicker ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="teacher_id">Teacher</Label>
+                    <select
+                      id="teacher_id"
+                      value={selectedTeacherId}
+                      onChange={(event) => setSelectedTeacherId(event.target.value)}
+                      required
+                      className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                    >
+                      <option value="">Select teacher</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   <Label htmlFor="student_id">Student</Label>
                   <select
@@ -298,9 +372,9 @@ export function DayDetailDialog({
                     className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
                   >
                     <option value="">Select student</option>
-                    {students.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name}
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.full_name}
                       </option>
                     ))}
                   </select>
@@ -314,46 +388,43 @@ export function DayDetailDialog({
                     className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
                   >
                     <option value="">Select course type</option>
-                    {courseTypes.map((ct) => (
-                      <option key={ct.id} value={ct.id}>
-                        {ct.name}
+                    {courseTypes.map((courseType) => (
+                      <option key={courseType.id} value={courseType.id}>
+                        {courseType.name}
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <ClassTimeFields day={scheduleDay} idPrefix="create_" />
+                {showOutcomeOnCreate ? (
                   <div className="space-y-2">
-                    <Label htmlFor="starts_at">Start</Label>
-                    <Input
-                      id="starts_at"
-                      name="starts_at"
-                      type="datetime-local"
-                      defaultValue={format(defaultStart(day), "yyyy-MM-dd'T'HH:mm")}
-                      required
-                    />
+                    <Label htmlFor="initial_outcome">Outcome</Label>
+                    <select
+                      id="initial_outcome"
+                      name="initial_outcome"
+                      defaultValue="scheduled"
+                      className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                    >
+                      <option value="scheduled">Scheduled (mark later)</option>
+                      <option value="completed">Successful</option>
+                      <option value="missed">Missed</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Successful or missed only applies if the class time has already passed.
+                    </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="ends_at">End</Label>
-                    <Input
-                      id="ends_at"
-                      name="ends_at"
-                      type="datetime-local"
-                      defaultValue={format(defaultEnd(day), "yyyy-MM-dd'T'HH:mm")}
-                      required
-                    />
-                  </div>
-                </div>
+                ) : null}
                 <div className="space-y-2">
                   <Label htmlFor="material">PDF (optional)</Label>
                   <Input id="material" name="material" type="file" accept="application/pdf" />
                 </div>
-                <div className="rounded-lg border border-border/60 bg-muted/40 p-3 space-y-3">
+                {!isPastDay ? (
+                <div className="space-y-3 rounded-lg border border-border/60 bg-muted/40 p-3">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      name="repeat_enabled"
                       checked={repeatWeekly}
-                      onChange={(e) => setRepeatWeekly(e.target.checked)}
+                      onChange={(event) => setRepeatWeekly(event.target.checked)}
                       className="size-4 rounded border-input accent-primary"
                     />
                     <span>Repeat every week for</span>
@@ -374,9 +445,10 @@ export function DayDetailDialog({
                     </Label>
                   </div>
                 </div>
+                ) : null}
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1">
-                    {repeatWeekly ? "Schedule classes" : "Add class"}
+                    {repeatWeekly && !isPastDay ? "Schedule classes" : "Add class"}
                   </Button>
                   <Button
                     type="button"
@@ -409,33 +481,15 @@ export function DayDetailDialog({
           </DialogHeader>
           {rescheduling ? (
             <form onSubmit={handleReschedule} className="space-y-4">
-              <input type="hidden" name="id" value={rescheduling.id} />
               <p className="text-sm text-muted-foreground">
-                {rescheduling.student?.full_name} ·{" "}
-                {rescheduling.course_type?.name}
+                {rescheduling.student?.full_name} · {rescheduling.course_type?.name}
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule_starts_at">New start</Label>
-                  <Input
-                    id="reschedule_starts_at"
-                    name="starts_at"
-                    type="datetime-local"
-                    defaultValue={toDatetimeLocalValue(rescheduling.starts_at)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reschedule_ends_at">New end</Label>
-                  <Input
-                    id="reschedule_ends_at"
-                    name="ends_at"
-                    type="datetime-local"
-                    defaultValue={toDatetimeLocalValue(rescheduling.ends_at)}
-                    required
-                  />
-                </div>
-              </div>
+              <ClassTimeFields
+                day={scheduleDay}
+                defaultStartsAt={rescheduling.starts_at}
+                defaultEndsAt={rescheduling.ends_at}
+                idPrefix="reschedule_"
+              />
               <Button type="submit" className="w-full">
                 Save reschedule
               </Button>

@@ -27,9 +27,9 @@ export function LoginForm() {
   );
 
   return (
-    <Card className="w-full max-w-md border-border/60 shadow-lg shadow-primary/5">
+    <Card className="w-full border-border/60 px-2 py-2 shadow-lg shadow-primary/5 sm:px-4">
       <CardHeader className="items-center space-y-4 text-center">
-        <Logo size="lg" />
+        <Logo size="lg" centered />
         <div>
           <CardTitle className="text-xl">Scheduler</CardTitle>
           <CardDescription className="mt-1">
@@ -40,7 +40,8 @@ export function LoginForm() {
         </div>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="space-y-4">
+        <div className="mx-auto w-full max-w-sm">
+          <form action={formAction} className="space-y-4">
           {mode === "signup" ? (
             <div className="space-y-2">
               <Label htmlFor="full_name">Full name</Label>
@@ -87,17 +88,18 @@ export function LoginForm() {
                 ? "Sign in"
                 : "Create account"}
           </Button>
-        </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {mode === "login" ? "No account yet?" : "Already have an account?"}{" "}
-          <button
-            type="button"
-            className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
-            onClick={() => setMode(mode === "login" ? "signup" : "login")}
-          >
-            {mode === "login" ? "Create one" : "Sign in"}
-          </button>
-        </p>
+          </form>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {mode === "login" ? "No account yet?" : "Already have an account?"}{" "}
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 transition-colors hover:underline"
+              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+            >
+              {mode === "login" ? "Create one" : "Sign in"}
+            </button>
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

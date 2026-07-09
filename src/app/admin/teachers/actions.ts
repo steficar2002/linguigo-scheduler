@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { removeProfilePhoto, uploadProfilePhoto } from "@/lib/storage";
 
 const teacherSchema = z.object({
   email: z.string().email(),
@@ -72,6 +74,55 @@ export async function updateTeacherAction(formData: FormData) {
   }
 
   revalidatePath("/admin/teachers");
+  return { success: true };
+}
+
+export async function updateTeacherProfileAction(formData: FormData) {
+  await requireRole("admin");
+
+  const id = String(formData.get("id") ?? "");
+  const full_name = String(formData.get("full_name") ?? "").trim();
+  const salaryPerHour = Number(formData.get("salary_per_hour") ?? 0);
+
+  if (!id || !full_name) {
+    return { error: "Teacher ID and name are required." };
+  }
+
+  const supabase = await createClient();
+  const { data: teacher } = await supabase
+    .from("profiles")
+    .select("avatar_path")
+    .eq("id", id)
+    .single();
+
+  let avatar_path = teacher?.avatar_path ?? null;
+  const file = formData.get("avatar") as File | null;
+
+  if (file && file.size > 0) {
+    if (avatar_path) {
+      await removeProfilePhoto(avatar_path);
+    }
+    const upload = await uploadProfilePhoto(id, file);
+    if (upload.error) return { error: upload.error };
+    avatar_path = upload.path ?? null;
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      full_name,
+      salary_per_hour: Number.isFinite(salaryPerHour) ? salaryPerHour : 0,
+      avatar_path,
+    })
+    .eq("id", id)
+    .eq("role", "teacher");
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/teachers");
+  revalidatePath(`/admin/teachers/${id}`);
   return { success: true };
 }
 

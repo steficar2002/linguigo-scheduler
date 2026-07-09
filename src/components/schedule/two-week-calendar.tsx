@@ -13,7 +13,9 @@ import {
   parseWeekParam,
   shiftWeek,
 } from "@/lib/schedule";
-import { formatTimeRange } from "@/lib/dates";
+import { formatTimeRangeInTimezone } from "@/lib/timezone";
+import { useDisplayTimezone } from "@/components/schedule/timezone-toggle";
+import { TimezoneToggle } from "@/components/schedule/timezone-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +24,10 @@ type TwoWeekCalendarProps = {
   mode: "edit" | "readonly";
   basePath: string;
   onDayClick?: (day: Date) => void;
+  onClassClick?: (classItem: ScheduleClass) => void;
   pendingClassIds?: string[];
+  showTeacherName?: boolean;
+  showTimezoneToggle?: boolean;
 };
 
 export function TwoWeekCalendar({
@@ -30,10 +35,14 @@ export function TwoWeekCalendar({
   mode,
   basePath,
   onDayClick,
+  onClassClick,
   pendingClassIds = [],
+  showTeacherName = false,
+  showTimezoneToggle = false,
 }: TwoWeekCalendarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const timezone = useDisplayTimezone();
   const weekStart = useMemo(
     () => parseWeekParam(searchParams.get("week")),
     [searchParams]
@@ -54,7 +63,7 @@ export function TwoWeekCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button
           type="button"
           variant="outline"
@@ -65,15 +74,18 @@ export function TwoWeekCalendar({
           <ChevronLeft />
         </Button>
         <p className="text-sm font-medium">{formatTwoWeekRange(weekStart)}</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          onClick={() => navigate(1)}
-          aria-label="Next week"
-        >
-          <ChevronRight />
-        </Button>
+        <div className="flex items-center gap-2">
+          {showTimezoneToggle ? <TimezoneToggle /> : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => navigate(1)}
+            aria-label="Next week"
+          >
+            <ChevronRight />
+          </Button>
+        </div>
       </div>
 
       <div
@@ -96,7 +108,7 @@ export function TwoWeekCalendar({
               disabled={!clickable}
               onClick={() => clickable && onDayClick?.(day)}
               className={cn(
-                "relative flex min-h-28 flex-col rounded-xl border border-border/60 bg-card p-2 text-left shadow-sm transition-all",
+                "relative flex min-h-32 flex-col rounded-xl border border-border/60 bg-card p-2 text-left shadow-sm transition-all",
                 isToday && "border-primary/40 ring-1 ring-primary/20",
                 clickable && "cursor-pointer hover:border-primary/30 hover:shadow-md",
                 !clickable && "cursor-default"
@@ -125,13 +137,39 @@ export function TwoWeekCalendar({
                   dayClasses.map((classItem) => (
                     <div
                       key={classItem.id}
+                      role={onClassClick ? "button" : undefined}
+                      tabIndex={onClassClick ? 0 : undefined}
+                      onClick={(event) => {
+                        if (!onClassClick) return;
+                        event.stopPropagation();
+                        onClassClick(classItem);
+                      }}
+                      onKeyDown={(event) => {
+                        if (!onClassClick) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onClassClick(classItem);
+                        }
+                      }}
                       className={cn(
                         "truncate rounded-md px-1.5 py-1 text-[10px] leading-tight",
                         pendingSet.has(classItem.id)
                           ? "bg-red-50 ring-1 ring-red-200"
-                          : "bg-primary/5"
+                          : classItem.outcome === "missed"
+                            ? "bg-amber-50 ring-1 ring-amber-200"
+                            : classItem.outcome === "completed" &&
+                                parseISO(classItem.ends_at) < new Date()
+                              ? "bg-emerald-50/80"
+                              : "bg-primary/5",
+                        onClassClick && "cursor-pointer hover:ring-1 hover:ring-primary/30"
                       )}
                     >
+                      {showTeacherName ? (
+                        <p className="truncate font-semibold text-primary/80">
+                          {classItem.teacher?.full_name ?? "Teacher"}
+                        </p>
+                      ) : null}
                       <p className="truncate font-medium">
                         {classItem.student?.full_name ?? "Student"}
                       </p>
@@ -139,7 +177,11 @@ export function TwoWeekCalendar({
                         {classItem.course_type?.name ?? "Class"}
                       </p>
                       <p className="truncate">
-                        {formatTimeRange(classItem.starts_at, classItem.ends_at)}
+                        {formatTimeRangeInTimezone(
+                          classItem.starts_at,
+                          classItem.ends_at,
+                          timezone
+                        )}
                       </p>
                     </div>
                   ))

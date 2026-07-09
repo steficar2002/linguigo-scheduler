@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { z } from "zod";
 import { getProfile, requireRole } from "@/lib/auth";
+import { isValidDuration } from "@/lib/class-duration";
+import { parseInitialOutcome } from "@/lib/class-outcomes";
 import { createClient } from "@/lib/supabase/server";
 import { removeClassMaterial, uploadClassMaterial } from "@/lib/storage";
 import {
@@ -12,6 +14,14 @@ import {
   hasOverlapOnDay,
 } from "@/lib/schedule";
 
+function formRequired(value: FormDataEntryValue | null): string {
+  return value === null ? "" : String(value);
+}
+
+function formOptional(value: FormDataEntryValue | null): string | undefined {
+  return value === null ? undefined : String(value);
+}
+
 const classTimesSchema = z
   .object({
     teacher_id: z.string().uuid(),
@@ -19,19 +29,30 @@ const classTimesSchema = z
     course_type_id: z.string().uuid(),
     starts_at: z.string().min(1),
     ends_at: z.string().min(1),
+    duration_minutes: z.coerce.number().optional(),
     repeat_enabled: z.string().optional(),
     repeat_weeks: z.coerce.number().int().min(1).max(52).optional(),
   })
   .refine((data) => new Date(data.ends_at) > new Date(data.starts_at), {
     message: "End time must be after start time.",
     path: ["ends_at"],
-  });
+  })
+  .refine(
+    (data) =>
+      data.duration_minutes === undefined ||
+      isValidDuration(data.duration_minutes),
+    {
+      message: "Invalid class duration.",
+      path: ["duration_minutes"],
+    }
+  );
 
 const rescheduleSchema = z
   .object({
     id: z.string().uuid(),
     starts_at: z.string().min(1),
     ends_at: z.string().min(1),
+    duration_minutes: z.coerce.number().optional(),
   })
   .refine((data) => new Date(data.ends_at) > new Date(data.starts_at), {
     message: "End time must be after start time.",
@@ -39,9 +60,9 @@ const rescheduleSchema = z
   });
 
 function revalidateSchedulePaths(teacherId: string) {
+  revalidatePath(`/admin/teachers/${teacherId}`);
   revalidatePath(`/admin/teachers/${teacherId}/schedule`);
   revalidatePath("/teacher/schedule");
-  revalidatePath("/admin/classes");
   revalidatePath("/admin/teachers");
 }
 
@@ -69,13 +90,14 @@ export async function createScheduledClass(formData: FormData) {
   const admin = await getProfile();
 
   const parsed = classTimesSchema.safeParse({
-    teacher_id: formData.get("teacher_id"),
-    student_id: formData.get("student_id"),
-    course_type_id: formData.get("course_type_id"),
-    starts_at: formData.get("starts_at"),
-    ends_at: formData.get("ends_at"),
-    repeat_enabled: formData.get("repeat_enabled"),
-    repeat_weeks: formData.get("repeat_weeks") || 1,
+    teacher_id: formRequired(formData.get("teacher_id")),
+    student_id: formRequired(formData.get("student_id")),
+    course_type_id: formRequired(formData.get("course_type_id")),
+    starts_at: formRequired(formData.get("starts_at")),
+    ends_at: formRequired(formData.get("ends_at")),
+    duration_minutes: formData.get("duration_minutes") ?? undefined,
+    repeat_enabled: formOptional(formData.get("repeat_enabled")),
+    repeat_weeks: formData.get("repeat_weeks") ?? undefined,
   });
 
   if (!parsed.success || !admin) {
@@ -83,12 +105,17 @@ export async function createScheduledClass(formData: FormData) {
   }
 
   const repeatEnabled = parsed.data.repeat_enabled === "true";
+  const baseStart = new Date(parsed.data.starts_at);
+
+  if (repeatEnabled && baseStart < startOfDay(new Date())) {
+    return { error: "Cannot create recurring classes on past days." };
+  }
+
   const totalWeeks = repeatEnabled
     ? Math.min(52, Math.max(2, parsed.data.repeat_weeks ?? 2))
     : 1;
 
   const supabase = await createClient();
-  const baseStart = new Date(parsed.data.starts_at);
   const baseEnd = new Date(parsed.data.ends_at);
   const occurrences = buildWeeklyOccurrences(baseStart, baseEnd, totalWeeks);
 
@@ -109,13 +136,17 @@ export async function createScheduledClass(formData: FormData) {
     };
   }
 
-  const rows = occurrences.map((occurrence) => ({
-    teacher_id: parsed.data.teacher_id,
-    student_id: parsed.data.student_id,
-    course_type_id: parsed.data.course_type_id,
-    starts_at: occurrence.startsAt.toISOString(),
-    ends_at: occurrence.endsAt.toISOString(),
-  }));
+  const rows = occurrences.map((occurrence) => {
+    const endsAt = occurrence.endsAt.toISOString();
+    return {
+      teacher_id: parsed.data.teacher_id,
+      student_id: parsed.data.student_id,
+      course_type_id: parsed.data.course_type_id,
+      starts_at: occurrence.startsAt.toISOString(),
+      ends_at: endsAt,
+      outcome: parseInitialOutcome(formData.get("initial_outcome"), endsAt),
+    };
+  });
 
   const { data: created, error } = await supabase
     .from("classes")
@@ -203,9 +234,10 @@ export async function rescheduleClass(formData: FormData) {
   if (!admin) return { error: "Unauthorized" };
 
   const parsed = rescheduleSchema.safeParse({
-    id: formData.get("id"),
-    starts_at: formData.get("starts_at"),
-    ends_at: formData.get("ends_at"),
+    id: formRequired(formData.get("id")),
+    starts_at: formRequired(formData.get("starts_at")),
+    ends_at: formRequired(formData.get("ends_at")),
+    duration_minutes: formData.get("duration_minutes") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -223,6 +255,22 @@ export async function rescheduleClass(formData: FormData) {
 
   const newStartsAt = new Date(parsed.data.starts_at).toISOString();
   const newEndsAt = new Date(parsed.data.ends_at).toISOString();
+
+  const { data: teacherClasses } = await supabase
+    .from("classes")
+    .select("id, starts_at, ends_at")
+    .eq("teacher_id", classRow.teacher_id);
+
+  if (
+    hasOverlapOnDay(
+      teacherClasses ?? [],
+      new Date(newStartsAt),
+      new Date(newEndsAt),
+      classRow.id
+    )
+  ) {
+    return { error: "This time overlaps with another class on the same day." };
+  }
 
   const { error } = await supabase
     .from("classes")
@@ -243,6 +291,97 @@ export async function rescheduleClass(formData: FormData) {
     new_ends_at: newEndsAt,
     changed_by: admin.id,
   });
+
+  revalidateSchedulePaths(classRow.teacher_id);
+  return { success: true };
+}
+
+export async function updateClassMaterial(formData: FormData) {
+  await requireRole("admin");
+  const classId = String(formData.get("class_id") ?? "");
+  if (!classId) return { error: "Class ID is required." };
+
+  const file = formData.get("material") as File | null;
+  if (!file || file.size === 0) {
+    return { error: "Please choose a PDF file." };
+  }
+
+  const supabase = await createClient();
+  const { data: classRow } = await supabase
+    .from("classes")
+    .select("teacher_id, material_path")
+    .eq("id", classId)
+    .single();
+
+  if (!classRow) return { error: "Class not found." };
+
+  if (classRow.material_path) {
+    await removeClassMaterial(classRow.material_path);
+  }
+
+  const upload = await uploadClassMaterial(classId, file);
+  if (upload.error) return { error: upload.error };
+
+  const { error } = await supabase
+    .from("classes")
+    .update({ material_path: upload.path ?? null })
+    .eq("id", classId);
+
+  if (error) return { error: error.message };
+
+  revalidateSchedulePaths(classRow.teacher_id);
+  return { success: true };
+}
+
+export async function markClassCompleted(classId: string) {
+  await requireRole("admin");
+  const supabase = await createClient();
+
+  const { data: classRow } = await supabase
+    .from("classes")
+    .select("teacher_id, starts_at, outcome")
+    .eq("id", classId)
+    .single();
+
+  if (!classRow) return { error: "Class not found." };
+
+  if (new Date(classRow.starts_at) > new Date()) {
+    return { error: "Only classes that have started can be marked." };
+  }
+
+  const { error } = await supabase
+    .from("classes")
+    .update({ outcome: "completed" })
+    .eq("id", classId);
+
+  if (error) return { error: error.message };
+
+  revalidateSchedulePaths(classRow.teacher_id);
+  return { success: true };
+}
+
+export async function markClassMissed(classId: string) {
+  await requireRole("admin");
+  const supabase = await createClient();
+
+  const { data: classRow } = await supabase
+    .from("classes")
+    .select("teacher_id, starts_at, outcome")
+    .eq("id", classId)
+    .single();
+
+  if (!classRow) return { error: "Class not found." };
+
+  if (new Date(classRow.starts_at) > new Date()) {
+    return { error: "Only classes that have started can be marked." };
+  }
+
+  const { error } = await supabase
+    .from("classes")
+    .update({ outcome: "missed" })
+    .eq("id", classId);
+
+  if (error) return { error: error.message };
 
   revalidateSchedulePaths(classRow.teacher_id);
   return { success: true };

@@ -137,15 +137,9 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
                       <Button
                         size="sm"
                         nativeButton={false}
-                        render={
-                          <Link
-                            href={`/admin/teachers/${teacher.id}/schedule`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          />
-                        }
+                        render={<Link href={`/admin/teachers/${teacher.id}`} />}
                       >
-                        Schedule
+                        Profile
                       </Button>
                       <Button
                         size="sm"

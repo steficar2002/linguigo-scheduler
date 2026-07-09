@@ -1,17 +1,20 @@
-import { notFound } from "next/navigation";
 import { addDays } from "date-fns";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { attachMaterialUrls } from "@/lib/class-materials";
 import { requireRole } from "@/lib/auth";
 import { parseWeekParam } from "@/lib/schedule";
-import { TeacherScheduleEditor } from "@/components/admin/teacher-schedule-editor";
-import type { ScheduleClass, RescheduleRequest } from "@/lib/types/database";
+import { getTeacherStats } from "@/lib/teacher-stats";
+import { getSignedUrl } from "@/lib/storage";
+import { createClient } from "@/lib/supabase/server";
+import { TeacherProfileEditor } from "@/components/admin/teacher-profile-editor";
+import type { RescheduleRequest, ScheduleClass } from "@/lib/types/database";
 
 type PageProps = {
   params: Promise<{ teacherId: string }>;
   searchParams: Promise<{ week?: string }>;
 };
 
-export default async function TeacherSchedulePage({
+export default async function TeacherProfilePage({
   params,
   searchParams,
 }: PageProps) {
@@ -66,7 +69,6 @@ export default async function TeacherSchedulePage({
 
   if (!teacher) notFound();
 
-  // Widen fetch for overlap checks beyond visible window
   const { data: allClasses } = await supabase
     .from("classes")
     .select(
@@ -77,10 +79,21 @@ export default async function TeacherSchedulePage({
     .lte("starts_at", addDays(weekStart, 44).toISOString())
     .order("starts_at");
 
+  const avatarUrl = teacher.avatar_path
+    ? await getSignedUrl("profile-photos", teacher.avatar_path)
+    : null;
+
+  const stats = await getTeacherStats(teacherId, Number(teacher.salary_per_hour));
+  const classesWithMaterials = await attachMaterialUrls(
+    (allClasses ?? classes ?? []) as ScheduleClass[]
+  );
+
   return (
-    <TeacherScheduleEditor
+    <TeacherProfileEditor
       teacher={teacher}
-      classes={(allClasses ?? classes ?? []) as ScheduleClass[]}
+      avatarUrl={avatarUrl}
+      stats={stats}
+      classes={classesWithMaterials}
       students={students ?? []}
       courseTypes={courseTypes ?? []}
       events={events ?? []}
