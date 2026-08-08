@@ -16,14 +16,16 @@ export default async function StudentsPage({
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
   const { q: rawQuery, status: rawStatus } = await searchParams;
-  const q = rawQuery?.trim() ?? "";
+  const q = rawQuery?.trim().replace(/[%|,]/g, "") ?? "";
   const status = studentStatuses.has(rawStatus as StudentStatus)
     ? (rawStatus as StudentStatus)
     : undefined;
   const supabase = await createClient();
   let query = supabase
     .from("students")
-    .select("*, teacher:profiles!students_teacher_id_fkey(id, full_name, username)")
+    .select(
+      "id, full_name, status, duration_minutes, price_paid, classes_per_week, alert, teacher_id, email, notes, username, teacher:profiles!students_teacher_id_fkey(id, full_name, username)",
+    )
     .order("full_name");
 
   if (status) {
@@ -36,5 +38,11 @@ export default async function StudentsPage({
 
   const { data: students } = await query;
 
-  return <StudentsPanel students={(students ?? []) as StudentWithTeacher[]} q={q} status={status} />;
+  return (
+    <StudentsPanel
+      students={(students ?? []) as unknown as StudentWithTeacher[]}
+      q={q}
+      status={status}
+    />
+  );
 }
