@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import { Copy, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type {
   ClassScheduleEventWithRelations,
@@ -12,7 +13,10 @@ import type {
   Student,
   TeacherStats,
 } from "@/lib/types/database";
-import { updateTeacherProfileAction } from "@/app/admin/teachers/actions";
+import {
+  regenerateTeacherPasswordAction,
+  updateTeacherProfileAction,
+} from "@/app/admin/teachers/actions";
 import {
   approveRescheduleRequest,
   createScheduledClass,
@@ -99,6 +103,18 @@ export function TeacherProfileEditor({
   events,
   pendingRequests,
 }: TeacherProfileEditorProps) {
+  const [password, setPassword] = useState(teacher.initial_password);
+  const [regenerating, setRegenerating] = useState(false);
+
+  async function copyCredential(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied.`);
+    } catch {
+      toast.error(`Could not copy ${label.toLowerCase()}.`);
+    }
+  }
+
   async function handleProfileUpdate(formData: FormData) {
     const result = await updateTeacherProfileAction(formData);
     if (result?.error) {
@@ -106,6 +122,22 @@ export function TeacherProfileEditor({
       return;
     }
     toast.success("Teacher profile updated.");
+  }
+
+  async function handlePasswordRegeneration() {
+    setRegenerating(true);
+    const result = await regenerateTeacherPasswordAction(teacher.id);
+    setRegenerating(false);
+
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    if (result?.password) {
+      setPassword(result.password);
+      toast.success("Teacher password regenerated.");
+    }
   }
 
   return (
@@ -157,6 +189,53 @@ export function TeacherProfileEditor({
                 Save profile
               </Button>
             </form>
+          </CardContent>
+        </Card>
+        <Card className="h-fit w-full max-w-md border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base">Credentials</CardTitle>
+            <CardDescription>Share these details securely with the teacher.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <div className="flex gap-2">
+                <Input aria-label="Username" value={teacher.username ?? ""} readOnly />
+                <Button
+                  aria-label="Copy username"
+                  size="icon"
+                  variant="outline"
+                  disabled={!teacher.username}
+                  onClick={() => teacher.username && copyCredential("Username", teacher.username)}
+                >
+                  <Copy />
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <div className="flex gap-2">
+                <Input aria-label="Password" value={password ?? ""} readOnly />
+                <Button
+                  aria-label="Copy password"
+                  size="icon"
+                  variant="outline"
+                  disabled={!password}
+                  onClick={() => password && copyCredential("Password", password)}
+                >
+                  <Copy />
+                </Button>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={regenerating}
+              onClick={handlePasswordRegeneration}
+            >
+              <RefreshCw className={regenerating ? "animate-spin" : ""} />
+              {regenerating ? "Regenerating…" : "Regenerate password"}
+            </Button>
           </CardContent>
         </Card>
       </div>

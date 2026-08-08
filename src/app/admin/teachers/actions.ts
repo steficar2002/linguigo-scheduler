@@ -3,55 +3,62 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
+import { authEmailFromUsername, generateCredentials } from "@/lib/credentials";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { removeProfilePhoto, uploadProfilePhoto } from "@/lib/storage";
 
 const teacherSchema = z.object({
-  email: z.string().email(),
   full_name: z.string().min(1, "Name is required"),
+  salary_per_hour: z.coerce.number().min(0).optional().default(0),
 });
 
 export async function createTeacherAction(formData: FormData) {
+  await requireRole("admin");
+
   const parsed = teacherSchema.safeParse({
-    email: formData.get("email"),
     full_name: formData.get("full_name"),
+    salary_per_hour: formData.get("salary_per_hour") || 0,
   });
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  const { username, password } = generateCredentials(parsed.data.full_name);
   const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(
-    parsed.data.email,
-    {
-      data: { full_name: parsed.data.full_name },
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/login`,
-    }
-  );
+  const { data, error } = await admin.auth.admin.createUser({
+    email: authEmailFromUsername(username),
+    password,
+    email_confirm: true,
+    app_metadata: { role: "teacher" },
+    user_metadata: { full_name: parsed.data.full_name },
+  });
 
   if (error) {
     return { error: error.message };
   }
 
   if (data.user) {
-    await admin.auth.admin.updateUserById(data.user.id, {
-      app_metadata: { role: "teacher" },
-      user_metadata: { full_name: parsed.data.full_name },
-    });
-
-    await admin.from("profiles").upsert({
+    const { error: profileError } = await admin.from("profiles").upsert({
       id: data.user.id,
-      email: parsed.data.email,
+      email: authEmailFromUsername(username),
       full_name: parsed.data.full_name,
       role: "teacher",
       is_active: true,
+      username,
+      initial_password: password,
+      salary_per_hour: parsed.data.salary_per_hour,
     });
+
+    if (profileError) {
+      await admin.auth.admin.deleteUser(data.user.id);
+      return { error: profileError.message };
+    }
   }
 
   revalidatePath("/admin/teachers");
-  return { success: true };
+  return { success: true, username, password };
 }
 
 export async function updateTeacherAction(formData: FormData) {
@@ -124,6 +131,49 @@ export async function updateTeacherProfileAction(formData: FormData) {
   revalidatePath("/admin/teachers");
   revalidatePath(`/admin/teachers/${id}`);
   return { success: true };
+}
+
+export async function regenerateTeacherPasswordAction(teacherId: string) {
+  await requireRole("admin");
+
+  if (!z.string().uuid().safeParse(teacherId).success) {
+    return { error: "Invalid teacher ID." };
+  }
+
+  const admin = createAdminClient();
+  const { data: teacher, error: teacherError } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", teacherId)
+    .eq("role", "teacher")
+    .single();
+
+  if (teacherError || !teacher) {
+    return { error: teacherError?.message ?? "Teacher not found." };
+  }
+
+  const { password } = generateCredentials(teacher.full_name);
+  const { error: authError } = await admin.auth.admin.updateUserById(teacherId, {
+    password,
+  });
+
+  if (authError) {
+    return { error: authError.message };
+  }
+
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({ initial_password: password })
+    .eq("id", teacherId)
+    .eq("role", "teacher");
+
+  if (profileError) {
+    return { error: profileError.message };
+  }
+
+  revalidatePath("/admin/teachers");
+  revalidatePath(`/admin/teachers/${teacherId}`);
+  return { success: true, password };
 }
 
 export async function deactivateTeacherAction(formData: FormData) {

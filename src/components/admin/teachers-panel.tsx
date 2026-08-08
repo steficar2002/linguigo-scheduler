@@ -40,7 +40,7 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
       toast.error(result.error);
       return;
     }
-    toast.success("Teacher invited.");
+    toast.success("Teacher account created.");
     setCreateOpen(false);
   }
 
@@ -69,13 +69,13 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
     <div className="space-y-6">
       <PageHeader
         title="Teachers"
-        description="Invite and manage teacher accounts."
+        description="Create and manage teacher accounts."
         action={
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger render={<Button />}>Add teacher</DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Invite teacher</DialogTitle>
+                <DialogTitle>Add teacher</DialogTitle>
               </DialogHeader>
               <form action={handleCreate} className="space-y-4">
                 <div className="space-y-2">
@@ -83,11 +83,18 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
                   <Input id="full_name" name="full_name" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" required />
+                  <Label htmlFor="salary_per_hour">Hourly rate ($)</Label>
+                  <Input
+                    id="salary_per_hour"
+                    name="salary_per_hour"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    defaultValue={0}
+                  />
                 </div>
                 <Button type="submit" className="w-full">
-                  Send invite
+                  Create teacher
                 </Button>
               </form>
             </DialogContent>
@@ -100,6 +107,7 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Username</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -108,7 +116,7 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
           <TableBody>
             {teachers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground">
                   No teachers yet.
                 </TableCell>
               </TableRow>
@@ -126,6 +134,7 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
                       {teacher.full_name || "—"}
                     </span>
                   </TableCell>
+                  <TableCell>{teacher.username ?? "—"}</TableCell>
                   <TableCell>{teacher.email}</TableCell>
                   <TableCell>
                     <Badge variant={teacher.is_active ? "default" : "secondary"}>
