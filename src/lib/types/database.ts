@@ -2,6 +2,8 @@ export type UserRole = "admin" | "teacher";
 
 export type ClassOutcome = "scheduled" | "completed" | "missed";
 
+export type StudentStatus = "active" | "paused" | "atx" | "ex" | "refunded";
+
 export type Profile = {
   id: string;
   email: string;
@@ -10,6 +12,8 @@ export type Profile = {
   is_active: boolean;
   avatar_path: string | null;
   salary_per_hour: number;
+  username: string | null;
+  initial_password: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -19,8 +23,22 @@ export type Student = {
   full_name: string;
   email: string | null;
   notes: string | null;
+  status: StudentStatus;
+  teacher_id: string | null;
+  duration_minutes: number | null;
+  price_paid: number | null;
+  teacher_hourly_override: number | null;
+  classes_per_week: number | null;
+  agent_commission: string | null;
+  alert: string | null;
+  username: string;
+  password: string;
   created_at: string;
   updated_at: string;
+};
+
+export type StudentWithTeacher = Student & {
+  teacher: Pick<Profile, "id" | "full_name" | "username"> | null;
 };
 
 export type CourseType = {
