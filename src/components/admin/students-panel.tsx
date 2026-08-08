@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import type { Student } from "@/lib/types/database";
+import type { StudentStatus, StudentWithTeacher } from "@/lib/types/database";
 import {
   createStudentAction,
   deleteStudentAction,
-  updateStudentAction,
 } from "@/app/admin/students/actions";
+import { STUDENT_STATUS_LABELS } from "@/lib/student-status";
 import { PageHeader } from "@/components/admin/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,48 +31,67 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-function StudentForm({
-  student,
+const statuses: StudentStatus[] = ["active", "paused", "atx", "ex", "refunded"];
+
+function studentSearchHref(q: string, status?: StudentStatus) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return query ? `/admin/students?${query}` : "/admin/students";
+}
+
+function formatMoney(value: number | null) {
+  return value === null
+    ? "—"
+    : new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+      }).format(value);
+}
+
+function statusVariant(status: StudentStatus) {
+  if (status === "refunded" || status === "ex") return "destructive";
+  if (status === "paused" || status === "atx") return "secondary";
+  return "default";
+}
+
+function CreateStudentForm({
   onSubmit,
 }: {
-  student?: Student;
   onSubmit: (formData: FormData) => Promise<void>;
 }) {
   return (
     <form action={onSubmit} className="space-y-4">
-      {student ? <input type="hidden" name="id" value={student.id} /> : null}
       <div className="space-y-2">
         <Label htmlFor="full_name">Full name</Label>
-        <Input
-          id="full_name"
-          name="full_name"
-          defaultValue={student?.full_name}
-          required
-        />
+        <Input id="full_name" name="full_name" required />
       </div>
       <div className="space-y-2">
         <Label htmlFor="email">Email (optional)</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          defaultValue={student?.email ?? ""}
-        />
+        <Input id="email" name="email" type="email" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="notes">Notes (optional)</Label>
-        <Textarea id="notes" name="notes" defaultValue={student?.notes ?? ""} />
+        <Textarea id="notes" name="notes" />
       </div>
       <Button type="submit" className="w-full">
-        {student ? "Save changes" : "Add student"}
+        Add student
       </Button>
     </form>
   );
 }
 
-export function StudentsPanel({ students }: { students: Student[] }) {
+export function StudentsPanel({
+  students,
+  q,
+  status,
+}: {
+  students: StudentWithTeacher[];
+  q: string;
+  status?: StudentStatus;
+}) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<Student | null>(null);
 
   async function handleCreate(formData: FormData) {
     const result = await createStudentAction(formData);
@@ -80,16 +101,6 @@ export function StudentsPanel({ students }: { students: Student[] }) {
     }
     toast.success("Student created.");
     setCreateOpen(false);
-  }
-
-  async function handleUpdate(formData: FormData) {
-    const result = await updateStudentAction(formData);
-    if (result?.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Student updated.");
-    setEditing(null);
   }
 
   async function handleDelete(id: string) {
@@ -115,26 +126,66 @@ export function StudentsPanel({ students }: { students: Student[] }) {
               <DialogHeader>
                 <DialogTitle>Add student</DialogTitle>
               </DialogHeader>
-              <StudentForm onSubmit={handleCreate} />
+              <CreateStudentForm onSubmit={handleCreate} />
             </DialogContent>
           </Dialog>
         }
       />
 
-      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
-        <Table>
+      <div className="flex flex-wrap items-center gap-2">
+        <form action="/admin/students" className="flex min-w-64 flex-1 gap-2">
+          {status ? <input type="hidden" name="status" value={status} /> : null}
+          <Input
+            aria-label="Search students"
+            defaultValue={q}
+            name="q"
+            placeholder="Search name or username"
+          />
+          <Button type="submit" variant="outline">
+            Search
+          </Button>
+        </form>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            nativeButton={false}
+            render={<Link href={studentSearchHref(q)} />}
+            size="sm"
+            variant={!status ? "default" : "outline"}
+          >
+            All
+          </Button>
+          {statuses.map((studentStatus) => (
+            <Button
+              key={studentStatus}
+              nativeButton={false}
+              render={<Link href={studentSearchHref(q, studentStatus)} />}
+              size="sm"
+              variant={status === studentStatus ? "default" : "outline"}
+            >
+              {STUDENT_STATUS_LABELS[studentStatus]}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-border/60 bg-card shadow-sm">
+        <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Notes</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Teacher</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Price</TableHead>
+              <TableHead>Classes/week</TableHead>
+              <TableHead>Alert</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {students.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={8} className="text-muted-foreground">
                   No students yet.
                 </TableCell>
               </TableRow>
@@ -142,18 +193,26 @@ export function StudentsPanel({ students }: { students: Student[] }) {
               students.map((student) => (
                 <TableRow key={student.id}>
                   <TableCell>{student.full_name}</TableCell>
-                  <TableCell>{student.email ?? "—"}</TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {student.notes ?? "—"}
+                  <TableCell>
+                    <Badge variant={statusVariant(student.status)}>
+                      {STUDENT_STATUS_LABELS[student.status]}
+                    </Badge>
                   </TableCell>
+                  <TableCell>{student.teacher?.full_name ?? "Unassigned"}</TableCell>
+                  <TableCell>
+                    {student.duration_minutes ? `${student.duration_minutes} min` : "—"}
+                  </TableCell>
+                  <TableCell>{formatMoney(student.price_paid)}</TableCell>
+                  <TableCell>{student.classes_per_week ?? "—"}</TableCell>
+                  <TableCell className="max-w-48 truncate">{student.alert ?? "—"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => setEditing(student)}
+                        nativeButton={false}
+                        render={<Link href={`/admin/students/${student.id}`} />}
                       >
-                        Edit
+                        Profile
                       </Button>
                       <Button
                         size="sm"
@@ -170,17 +229,6 @@ export function StudentsPanel({ students }: { students: Student[] }) {
           </TableBody>
         </Table>
       </div>
-
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit student</DialogTitle>
-          </DialogHeader>
-          {editing ? (
-            <StudentForm student={editing} onSubmit={handleUpdate} />
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

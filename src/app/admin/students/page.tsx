@@ -1,12 +1,40 @@
 import { createClient } from "@/lib/supabase/server";
 import { StudentsPanel } from "@/components/admin/students-panel";
+import type { StudentStatus, StudentWithTeacher } from "@/lib/types/database";
 
-export default async function StudentsPage() {
+const studentStatuses = new Set<StudentStatus>([
+  "active",
+  "paused",
+  "atx",
+  "ex",
+  "refunded",
+]);
+
+export default async function StudentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
+  const { q: rawQuery, status: rawStatus } = await searchParams;
+  const q = rawQuery?.trim() ?? "";
+  const status = studentStatuses.has(rawStatus as StudentStatus)
+    ? (rawStatus as StudentStatus)
+    : undefined;
   const supabase = await createClient();
-  const { data: students } = await supabase
+  let query = supabase
     .from("students")
-    .select("*")
+    .select("*, teacher:profiles!students_teacher_id_fkey(id, full_name, username)")
     .order("full_name");
 
-  return <StudentsPanel students={students ?? []} />;
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  if (q) {
+    query = query.or(`full_name.ilike.%${q}%,username.ilike.%${q}%`);
+  }
+
+  const { data: students } = await query;
+
+  return <StudentsPanel students={(students ?? []) as StudentWithTeacher[]} q={q} status={status} />;
 }
