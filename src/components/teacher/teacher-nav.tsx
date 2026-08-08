@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { logoutAction } from "@/app/(auth)/login/actions";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,21 @@ export function TeacherNav() {
             Your upcoming classes
           </p>
         </div>
-        <form action={logoutAction}>
-          <Button type="submit" variant="outline" size="sm">
-            Sign out
+        <div className="flex items-center gap-2">
+          <Button
+            nativeButton={false}
+            render={<Link href="/teacher/students" />}
+            size="sm"
+            variant="ghost"
+          >
+            My Students
           </Button>
-        </form>
+          <form action={logoutAction}>
+            <Button type="submit" variant="outline" size="sm">
+              Sign out
+            </Button>
+          </form>
+        </div>
       </div>
     </header>
   );
