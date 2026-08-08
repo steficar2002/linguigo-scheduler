@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth";
-import { authEmailFromUsername, generateCredentials } from "@/lib/credentials";
+import {
+  authEmailFromUsername,
+  createWithUniqueCredentials,
+  generateCredentials,
+} from "@/lib/credentials";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { removeProfilePhoto, uploadProfilePhoto } from "@/lib/storage";
@@ -25,15 +29,18 @@ export async function createTeacherAction(formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const { username, password } = generateCredentials(parsed.data.full_name);
   const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.createUser({
-    email: authEmailFromUsername(username),
-    password,
-    email_confirm: true,
-    app_metadata: { role: "teacher" },
-    user_metadata: { full_name: parsed.data.full_name },
-  });
+  const { data, error, credentials } = await createWithUniqueCredentials(
+    parsed.data.full_name,
+    ({ username, password }) =>
+      admin.auth.admin.createUser({
+        email: authEmailFromUsername(username),
+        password,
+        email_confirm: true,
+        app_metadata: { role: "teacher" },
+        user_metadata: { full_name: parsed.data.full_name },
+      }),
+  );
 
   if (error) {
     return { error: error.message };
@@ -42,12 +49,12 @@ export async function createTeacherAction(formData: FormData) {
   if (data.user) {
     const { error: profileError } = await admin.from("profiles").upsert({
       id: data.user.id,
-      email: authEmailFromUsername(username),
+      email: authEmailFromUsername(credentials.username),
       full_name: parsed.data.full_name,
       role: "teacher",
       is_active: true,
-      username,
-      initial_password: password,
+      username: credentials.username,
+      initial_password: credentials.password,
       salary_per_hour: parsed.data.salary_per_hour,
     });
 
@@ -58,7 +65,7 @@ export async function createTeacherAction(formData: FormData) {
   }
 
   revalidatePath("/admin/teachers");
-  return { success: true, username, password };
+  return { success: true, ...credentials };
 }
 
 export async function updateTeacherAction(formData: FormData) {

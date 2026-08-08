@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { generateCredentials } from "@/lib/credentials";
+import { createWithUniqueCredentials, generateCredentials } from "@/lib/credentials";
 import type { StudentStatus } from "@/lib/types/database";
 import { createClient } from "@/lib/supabase/server";
 
@@ -71,13 +71,16 @@ export async function createStudentAction(formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  const { username, password } = generateCredentials(parsed.data.full_name);
   const supabase = await createClient();
-  const { error } = await supabase.from("students").insert({
-    ...parsed.data,
-    username,
-    password,
-  });
+  const { error } = await createWithUniqueCredentials(
+    parsed.data.full_name,
+    ({ username, password }) =>
+      supabase.from("students").insert({
+        ...parsed.data,
+        username,
+        password,
+      }),
+  );
 
   if (error) {
     return { error: error.message };

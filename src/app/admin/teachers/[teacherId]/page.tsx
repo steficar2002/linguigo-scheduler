@@ -37,7 +37,9 @@ export default async function TeacherProfilePage({
   ] = await Promise.all([
     supabase
       .from("profiles")
-      .select("*")
+      .select(
+        "id, email, full_name, role, is_active, avatar_path, salary_per_hour, username, initial_password, created_at, updated_at",
+      )
       .eq("id", teacherId)
       .eq("role", "teacher")
       .single(),

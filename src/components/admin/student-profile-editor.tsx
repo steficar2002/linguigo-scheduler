@@ -61,17 +61,21 @@ export function StudentProfileEditor({
 
   async function handlePasswordRegeneration() {
     setRegenerating(true);
-    const result = await regenerateStudentPasswordAction(student.id);
-    setRegenerating(false);
 
-    if (result?.error) {
-      toast.error(result.error);
-      return;
-    }
+    try {
+      const result = await regenerateStudentPasswordAction(student.id);
 
-    if (result?.password) {
-      setPassword(result.password);
-      toast.success("Student password regenerated.");
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      if (result?.password) {
+        setPassword(result.password);
+        toast.success("Student password regenerated.");
+      }
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -139,6 +143,14 @@ export function StudentProfileEditor({
                       </option>
                     ))}
                   </select>
+                  {student.teacher_id && (
+                    <Link
+                      href={`/admin/teachers/${student.teacher_id}`}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      View teacher profile →
+                    </Link>
+                  )}
                 </div>
               </div>
 

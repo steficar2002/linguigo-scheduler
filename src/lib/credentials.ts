@@ -1,5 +1,10 @@
 const AUTH_EMAIL_DOMAIN = "linguigo.local";
 
+export type CredentialCreationResult<T> = {
+  data: T;
+  error: { code?: string; message: string } | null;
+};
+
 export function authEmailFromUsername(username: string) {
   return `${username}@${AUTH_EMAIL_DOMAIN}`;
 }
@@ -39,6 +44,30 @@ export function generateCredentials(fullName: string) {
   if (password.length < 6) password = `${password}${randomDigits(6 - password.length)}`;
 
   return { username, password };
+}
+
+function isUsernameCollision(error: CredentialCreationResult<unknown>["error"]) {
+  return error?.code === "23505" || error?.code === "email_exists";
+}
+
+export async function createWithUniqueCredentials<
+  T extends Pick<CredentialCreationResult<unknown>, "error">,
+>(
+  fullName: string,
+  create: (
+    credentials: ReturnType<typeof generateCredentials>,
+  ) => PromiseLike<T>,
+) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const credentials = generateCredentials(fullName);
+    const result = await create(credentials);
+
+    if (!isUsernameCollision(result.error) || attempt === 4) {
+      return { ...result, credentials };
+    }
+  }
+
+  throw new Error("Unable to create credentials.");
 }
 
 export function parseMoney(raw: string | null | undefined): number | null {

@@ -126,17 +126,21 @@ export function TeacherProfileEditor({
 
   async function handlePasswordRegeneration() {
     setRegenerating(true);
-    const result = await regenerateTeacherPasswordAction(teacher.id);
-    setRegenerating(false);
 
-    if (result?.error) {
-      toast.error(result.error);
-      return;
-    }
+    try {
+      const result = await regenerateTeacherPasswordAction(teacher.id);
 
-    if (result?.password) {
-      setPassword(result.password);
-      toast.success("Teacher password regenerated.");
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      if (result?.password) {
+        setPassword(result.password);
+        toast.success("Teacher password regenerated.");
+      }
+    } finally {
+      setRegenerating(false);
     }
   }
 

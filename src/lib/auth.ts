@@ -2,13 +2,15 @@ import { redirect } from "next/navigation";
 import type { Profile, UserRole } from "@/lib/types/database";
 import { createClient } from "@/lib/supabase/server";
 
+export type AuthProfile = Omit<Profile, "initial_password">;
+
 export async function getUser() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   return data?.claims?.sub ?? null;
 }
 
-export async function getProfile(): Promise<Profile | null> {
+export async function getProfile(): Promise<AuthProfile | null> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const userId = data?.claims?.sub;
@@ -17,14 +19,16 @@ export async function getProfile(): Promise<Profile | null> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("*")
+    .select(
+      "id, email, full_name, role, is_active, avatar_path, salary_per_hour, username, created_at, updated_at",
+    )
     .eq("id", userId)
     .single();
 
   return profile;
 }
 
-export async function requireRole(role: UserRole): Promise<Profile> {
+export async function requireRole(role: UserRole): Promise<AuthProfile> {
   const profile = await getProfile();
 
   if (!profile || profile.role !== role || !profile.is_active) {
