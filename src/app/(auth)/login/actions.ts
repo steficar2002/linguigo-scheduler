@@ -52,12 +52,16 @@ export async function signupAction(formData: FormData) {
 }
 
 export async function loginAction(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
+  const identifier = String(formData.get("email") ?? formData.get("identifier") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  if (!email || !password) {
-    return { error: "Email and password are required." };
+  if (!identifier || !password) {
+    return { error: "Username/email and password are required." };
   }
+
+  const { resolveAuthEmail } = await import("@/lib/auth-username");
+  const email = await resolveAuthEmail(identifier);
+  if (!email) return { error: "Account not found." };
 
   const supabase = await createClient();
   const { data: authData, error } = await supabase.auth.signInWithPassword({

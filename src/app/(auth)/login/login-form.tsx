@@ -54,12 +54,14 @@ export function LoginForm() {
             </div>
           ) : null}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">
+              {mode === "login" ? "Username or email" : "Email"}
+            </Label>
             <Input
               id="email"
               name="email"
-              type="email"
-              autoComplete="email"
+              type={mode === "login" ? "text" : "email"}
+              autoComplete={mode === "login" ? "username" : "email"}
               required
             />
           </div>
