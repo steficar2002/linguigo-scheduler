@@ -38,7 +38,7 @@ export type Student = {
 };
 
 export type StudentWithTeacher = Student & {
-  teacher: Pick<Profile, "id" | "full_name" | "username"> | null;
+  teacher: Pick<Profile, "id" | "full_name" | "username" | "salary_per_hour"> | null;
 };
 
 export type CourseType = {

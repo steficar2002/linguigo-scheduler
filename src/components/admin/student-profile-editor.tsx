@@ -9,7 +9,7 @@ import {
   updateStudentAction,
 } from "@/app/admin/students/actions";
 import { STUDENT_STATUS_LABELS } from "@/lib/student-status";
-import type { Profile, Student, StudentStatus } from "@/lib/types/database";
+import type { Profile, StudentStatus, StudentWithTeacher } from "@/lib/types/database";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,8 +25,8 @@ import { Textarea } from "@/components/ui/textarea";
 const statuses: StudentStatus[] = ["active", "paused", "atx", "ex", "refunded"];
 
 type StudentProfileEditorProps = {
-  student: Student;
-  teachers: Pick<Profile, "id" | "full_name" | "username">[];
+  student: StudentWithTeacher;
+  teachers: Pick<Profile, "id" | "full_name" | "username" | "salary_per_hour">[];
 };
 
 function numberValue(value: number | null) {
@@ -190,7 +190,7 @@ export function StudentProfileEditor({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="teacher_hourly_override">
-                    Teacher hourly override ($)
+                    Teacher pay ($)
                   </Label>
                   <Input
                     id="teacher_hourly_override"
@@ -199,7 +199,18 @@ export function StudentProfileEditor({
                     min={0}
                     step="0.01"
                     defaultValue={numberValue(student.teacher_hourly_override)}
+                    placeholder={
+                      student.teacher?.salary_per_hour != null
+                        ? `Default ${student.teacher.salary_per_hour}`
+                        : undefined
+                    }
                   />
+                  {student.teacher?.salary_per_hour != null &&
+                  student.teacher_hourly_override == null ? (
+                    <p className="text-xs text-muted-foreground">
+                      Using teacher default: ${student.teacher.salary_per_hour}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="agent_commission">Agent commission</Label>

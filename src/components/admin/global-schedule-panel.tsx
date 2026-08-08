@@ -108,8 +108,6 @@ export function GlobalSchedulePanel({
 }: GlobalSchedulePanelProps) {
   return (
     <div className="space-y-8">
-      <TeachersPanel teachers={teachers} />
-
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold">All classes</h2>
@@ -129,6 +127,8 @@ export function GlobalSchedulePanel({
           />
         </Suspense>
       </div>
+
+      <TeachersPanel teachers={teachers} />
     </div>
   );
 }

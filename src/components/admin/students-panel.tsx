@@ -50,6 +50,10 @@ function formatMoney(value: number | null) {
       }).format(value);
 }
 
+function teacherPay(student: StudentWithTeacher) {
+  return student.teacher_hourly_override ?? student.teacher?.salary_per_hour ?? null;
+}
+
 function statusVariant(status: StudentStatus) {
   if (status === "refunded" || status === "ex") return "destructive";
   if (status === "paused" || status === "atx") return "secondary";
@@ -169,7 +173,7 @@ export function StudentsPanel({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border/60 bg-card shadow-sm">
-        <Table className="min-w-[900px]">
+        <Table className="min-w-[1000px]">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
@@ -177,6 +181,7 @@ export function StudentsPanel({
               <TableHead>Teacher</TableHead>
               <TableHead>Duration</TableHead>
               <TableHead>Price</TableHead>
+              <TableHead>Teacher pay</TableHead>
               <TableHead>Classes/week</TableHead>
               <TableHead>Alert</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -185,7 +190,7 @@ export function StudentsPanel({
           <TableBody>
             {students.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-muted-foreground">
+                <TableCell colSpan={9} className="text-muted-foreground">
                   No students yet.
                 </TableCell>
               </TableRow>
@@ -203,6 +208,7 @@ export function StudentsPanel({
                     {student.duration_minutes ? `${student.duration_minutes} min` : "—"}
                   </TableCell>
                   <TableCell>{formatMoney(student.price_paid)}</TableCell>
+                  <TableCell>{formatMoney(teacherPay(student))}</TableCell>
                   <TableCell>{student.classes_per_week ?? "—"}</TableCell>
                   <TableCell className="max-w-48 truncate">{student.alert ?? "—"}</TableCell>
                   <TableCell className="text-right">

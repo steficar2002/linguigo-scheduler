@@ -25,7 +25,7 @@ const supabase = createClient(
 const users = [
   {
     email: "admin@linguigo.com",
-    password: "admin12",
+    password: "admin1",
     full_name: "Admin",
     role: "admin",
   },

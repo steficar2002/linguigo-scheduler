@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { StudentProfileEditor } from "@/components/admin/student-profile-editor";
-import type { Profile, Student } from "@/lib/types/database";
+import type { Profile, StudentWithTeacher } from "@/lib/types/database";
 
 type PageProps = {
   params: Promise<{ studentId: string }>;
@@ -14,10 +14,16 @@ export default async function StudentProfilePage({ params }: PageProps) {
   const supabase = await createClient();
 
   const [{ data: student }, { data: teachers }] = await Promise.all([
-    supabase.from("students").select("*").eq("id", studentId).single(),
+    supabase
+      .from("students")
+      .select(
+        "*, teacher:profiles!students_teacher_id_fkey(id, full_name, username, salary_per_hour)",
+      )
+      .eq("id", studentId)
+      .single(),
     supabase
       .from("profiles")
-      .select("id, full_name, username")
+      .select("id, full_name, username, salary_per_hour")
       .eq("role", "teacher")
       .order("full_name"),
   ]);
@@ -26,8 +32,13 @@ export default async function StudentProfilePage({ params }: PageProps) {
 
   return (
     <StudentProfileEditor
-      student={student as Student}
-      teachers={(teachers ?? []) as Pick<Profile, "id" | "full_name" | "username">[]}
+      student={student as unknown as StudentWithTeacher}
+      teachers={
+        (teachers ?? []) as Pick<
+          Profile,
+          "id" | "full_name" | "username" | "salary_per_hour"
+        >[]
+      }
     />
   );
 }
