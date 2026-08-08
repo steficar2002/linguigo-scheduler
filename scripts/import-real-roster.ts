@@ -78,7 +78,7 @@ export function parseRosterRows(rows: unknown[][]): RosterParseResult {
   const statusColumn = columnIndex(headers, "Status");
   const teacherColumn = columnIndex(headers, "Teacher");
   const durationColumn = columnIndex(headers, "Duration");
-  const priceColumn = columnIndex(headers, "Price");
+  const priceColumn = columnIndex(headers, "Price they pay", "Price");
   const hourlyColumn = columnIndex(headers, "Teacher's hourly", "Teacher hourly");
   const classesPerWeekColumn = columnIndex(headers, "Classes per week");
   const commissionColumn = columnIndex(headers, "Agent's Commission", "Agent Commission");

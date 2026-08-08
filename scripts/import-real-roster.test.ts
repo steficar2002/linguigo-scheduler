@@ -9,7 +9,7 @@ test("parseRosterRows skips junk and maps spreadsheet records", () => {
       "Status",
       "Teacher",
       "Duration",
-      "Price",
+      "Price they pay",
       "Teacher's hourly",
       "Classes per week",
       "Agent's Commission",
@@ -59,4 +59,25 @@ test("parseRosterRows skips junk and maps spreadsheet records", () => {
       alert: null,
     },
   ]);
+});
+
+test("parseRosterRows reads Price they pay from real spreadsheet headers", () => {
+  const rows = [
+    [
+      "Name",
+      "Person",
+      "Status",
+      "Alert",
+      "Teacher",
+      "Duration",
+      "Price they pay",
+      "Teacher's hourly",
+      "Classes per week",
+      "Agent's Commission",
+    ],
+    ["Jenny", "", "On a pause", "", "Uros", "55 min", "25$", "15$", "2", "4$ (May)"],
+  ];
+
+  const { students } = parseRosterRows(rows);
+  assert.equal(students[0]?.pricePaid, 25);
 });
