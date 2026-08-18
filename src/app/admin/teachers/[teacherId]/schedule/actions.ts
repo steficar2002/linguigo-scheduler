@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getProfile, requireRole } from "@/lib/auth";
 import { isValidDuration } from "@/lib/class-duration";
 import { parseInitialOutcome } from "@/lib/class-outcomes";
+import type { ClassOutcome } from "@/lib/types/database";
 import { createClient } from "@/lib/supabase/server";
 import { removeClassMaterial, uploadClassMaterial } from "@/lib/storage";
 import {
@@ -64,6 +65,37 @@ function revalidateSchedulePaths(teacherId: string) {
   revalidatePath(`/admin/teachers/${teacherId}/schedule`);
   revalidatePath("/teacher/schedule");
   revalidatePath("/admin/teachers");
+  revalidatePath("/admin/students");
+}
+
+async function requireScheduler() {
+  const profile = await getProfile();
+  if (!profile || !profile.is_active) {
+    return { error: "Unauthorized" as const, profile: null };
+  }
+  if (profile.role !== "admin" && profile.role !== "teacher") {
+    return { error: "Unauthorized" as const, profile: null };
+  }
+  return { profile };
+}
+
+async function applyClassesRemainingDelta(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  studentId: string,
+  delta: number
+) {
+  if (delta === 0) return;
+  const { data: student } = await supabase
+    .from("students")
+    .select("classes_remaining")
+    .eq("id", studentId)
+    .single();
+  if (!student) return;
+  const next = Math.max(0, (student.classes_remaining ?? 0) + delta);
+  await supabase
+    .from("students")
+    .update({ classes_remaining: next })
+    .eq("id", studentId);
 }
 
 async function logEvent(
@@ -86,8 +118,8 @@ async function logEvent(
 }
 
 export async function createScheduledClass(formData: FormData) {
-  await requireRole("admin");
-  const admin = await getProfile();
+  const auth = await requireScheduler();
+  if (!auth.profile) return { error: auth.error };
 
   const parsed = classTimesSchema.safeParse({
     teacher_id: formRequired(formData.get("teacher_id")),
@@ -100,8 +132,15 @@ export async function createScheduledClass(formData: FormData) {
     repeat_weeks: formData.get("repeat_weeks") ?? undefined,
   });
 
-  if (!parsed.success || !admin) {
+  if (!parsed.success) {
     return { error: parsed.error?.issues[0]?.message ?? "Invalid input" };
+  }
+
+  if (
+    auth.profile.role === "teacher" &&
+    parsed.data.teacher_id !== auth.profile.id
+  ) {
+    return { error: "You can only add classes for yourself." };
   }
 
   const repeatEnabled = parsed.data.repeat_enabled === "true";
@@ -169,6 +208,15 @@ export async function createScheduledClass(formData: FormData) {
     }
   }
 
+  const completedCount = rows.filter((row) => row.outcome === "completed").length;
+  if (completedCount > 0) {
+    await applyClassesRemainingDelta(
+      supabase,
+      parsed.data.student_id,
+      -completedCount
+    );
+  }
+
   const bulkNote =
     totalWeeks > 1 ? `Recurring series of ${totalWeeks} weekly classes` : null;
 
@@ -182,7 +230,7 @@ export async function createScheduledClass(formData: FormData) {
         course_type_id: parsed.data.course_type_id,
         new_starts_at: rows[index].starts_at,
         new_ends_at: rows[index].ends_at,
-        changed_by: admin.id,
+        changed_by: auth.profile.id,
         note: bulkNote,
       })
     )
@@ -333,58 +381,69 @@ export async function updateClassMaterial(formData: FormData) {
   return { success: true };
 }
 
-export async function markClassCompleted(classId: string) {
-  await requireRole("admin");
-  const supabase = await createClient();
+export async function markClassOutcome(
+  classId: string,
+  outcome: ClassOutcome
+) {
+  const auth = await requireScheduler();
+  if (!auth.profile) return { error: auth.error };
 
+  if (
+    outcome !== "completed" &&
+    outcome !== "canceled_on_time" &&
+    outcome !== "late_cancel"
+  ) {
+    return { error: "Invalid outcome." };
+  }
+
+  const supabase = await createClient();
   const { data: classRow } = await supabase
     .from("classes")
-    .select("teacher_id, starts_at, outcome")
+    .select("teacher_id, student_id, starts_at, outcome")
     .eq("id", classId)
     .single();
 
   if (!classRow) return { error: "Class not found." };
 
+  if (
+    auth.profile.role === "teacher" &&
+    classRow.teacher_id !== auth.profile.id
+  ) {
+    return { error: "You can only mark your own classes." };
+  }
+
   if (new Date(classRow.starts_at) > new Date()) {
     return { error: "Only classes that have started can be marked." };
   }
 
+  const previous = classRow.outcome as ClassOutcome;
   const { error } = await supabase
     .from("classes")
-    .update({ outcome: "completed" })
+    .update({ outcome })
     .eq("id", classId);
 
   if (error) return { error: error.message };
+
+  const wasSuccessful = previous === "completed";
+  const isSuccessful = outcome === "completed";
+  if (wasSuccessful !== isSuccessful) {
+    await applyClassesRemainingDelta(
+      supabase,
+      classRow.student_id,
+      isSuccessful ? -1 : 1
+    );
+  }
 
   revalidateSchedulePaths(classRow.teacher_id);
   return { success: true };
 }
 
+export async function markClassCompleted(classId: string) {
+  return markClassOutcome(classId, "completed");
+}
+
 export async function markClassMissed(classId: string) {
-  await requireRole("admin");
-  const supabase = await createClient();
-
-  const { data: classRow } = await supabase
-    .from("classes")
-    .select("teacher_id, starts_at, outcome")
-    .eq("id", classId)
-    .single();
-
-  if (!classRow) return { error: "Class not found." };
-
-  if (new Date(classRow.starts_at) > new Date()) {
-    return { error: "Only classes that have started can be marked." };
-  }
-
-  const { error } = await supabase
-    .from("classes")
-    .update({ outcome: "missed" })
-    .eq("id", classId);
-
-  if (error) return { error: error.message };
-
-  revalidateSchedulePaths(classRow.teacher_id);
-  return { success: true };
+  return markClassOutcome(classId, "canceled_on_time");
 }
 
 export async function approveRescheduleRequest(requestId: string) {

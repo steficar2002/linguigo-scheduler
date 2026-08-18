@@ -39,7 +39,7 @@ function StatCard({
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <CardContent className="grid gap-4 sm:grid-cols-5">
         <div>
           <p className="text-muted-foreground text-sm">Classes</p>
           <p className="text-2xl font-semibold">{data.total}</p>
@@ -49,8 +49,12 @@ function StatCard({
           <p className="text-2xl font-semibold text-emerald-600">{data.successful}</p>
         </div>
         <div>
-          <p className="text-muted-foreground text-sm">Missed</p>
-          <p className="text-2xl font-semibold text-amber-600">{data.missed}</p>
+          <p className="text-muted-foreground text-sm">On-time cancel</p>
+          <p className="text-2xl font-semibold text-amber-600">{data.canceledOnTime}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground text-sm">Late cancel</p>
+          <p className="text-2xl font-semibold text-orange-600">{data.lateCancel}</p>
         </div>
         <div>
           <p className="text-muted-foreground text-sm">Payment</p>
@@ -66,7 +70,7 @@ export function TeacherStatsPanel({
   salaryPerHour,
   stats,
 }: TeacherStatsPanelProps) {
-  const [period, setPeriod] = useState<StatsPeriod>("today");
+  const [period, setPeriod] = useState<StatsPeriod>("pastMonth");
   const [customFrom, setCustomFrom] = useState(
     format(new Date(), "yyyy-MM-dd")
   );
@@ -89,7 +93,8 @@ export function TeacherStatsPanel({
           data: customStats ?? {
             total: 0,
             successful: 0,
-            missed: 0,
+            canceledOnTime: 0,
+            lateCancel: 0,
             payment: 0,
           },
         };

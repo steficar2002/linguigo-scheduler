@@ -1,19 +1,19 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { authEmailFromUsername } from "@/lib/credentials";
+import { createClient } from "@/lib/supabase/server";
 
 export async function resolveAuthEmail(identifier: string): Promise<string | null> {
   const value = identifier.trim();
   if (!value) return null;
   if (value.includes("@")) return value.toLowerCase();
 
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("profiles")
-    .select("email, username")
-    .eq("username", value.toLowerCase())
-    .maybeSingle();
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("lookup_auth_email", {
+    p_username: value.toLowerCase(),
+  });
 
-  if (data?.email) return data.email;
-  // Fallback if profile email missing but convention used
+  if (typeof data === "string" && data.length > 0) {
+    return data;
+  }
+
   return authEmailFromUsername(value.toLowerCase());
 }

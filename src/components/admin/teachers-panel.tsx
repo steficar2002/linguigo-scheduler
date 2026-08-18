@@ -6,6 +6,7 @@ import type { TeacherWithPendingCount } from "@/lib/types/database";
 import {
   createTeacherAction,
   deactivateTeacherAction,
+  reactivateTeacherAction,
   updateTeacherAction,
 } from "@/app/admin/teachers/actions";
 import Link from "next/link";
@@ -52,6 +53,17 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
     }
     toast.success("Teacher updated.");
     setEditing(null);
+  }
+
+  async function handleReactivate(id: string) {
+    const formData = new FormData();
+    formData.set("id", id);
+    const result = await reactivateTeacherAction(formData);
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Teacher activated.");
   }
 
   async function handleDeactivate(id: string) {
@@ -165,7 +177,15 @@ export function TeachersPanel({ teachers }: { teachers: TeacherWithPendingCount[
                         >
                           Deactivate
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReactivate(teacher.id)}
+                        >
+                          Activate
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

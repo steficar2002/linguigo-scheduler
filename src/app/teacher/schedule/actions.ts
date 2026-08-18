@@ -9,6 +9,7 @@ import { hasOverlapOnDay } from "@/lib/schedule";
 function revalidateAll(teacherId: string) {
   revalidatePath("/teacher/schedule");
   revalidatePath("/admin/teachers");
+  revalidatePath(`/admin/teachers/${teacherId}`);
   revalidatePath(`/admin/teachers/${teacherId}/schedule`);
 }
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { parseISO, isValid } from "date-fns";
-import { requireRole } from "@/lib/auth";
+import { getProfile } from "@/lib/auth";
 import { getTeacherStatsForRange } from "@/lib/teacher-stats";
 import type { TeacherStatsPeriod } from "@/lib/types/database";
 
@@ -11,7 +11,16 @@ export async function fetchTeacherStatsForRangeAction(
   from: string,
   to: string
 ): Promise<{ data?: TeacherStatsPeriod; error?: string }> {
-  await requireRole("admin");
+  const profile = await getProfile();
+  if (!profile || !profile.is_active) {
+    return { error: "Unauthorized" };
+  }
+  if (profile.role === "teacher" && profile.id !== teacherId) {
+    return { error: "Unauthorized" };
+  }
+  if (profile.role !== "admin" && profile.role !== "teacher") {
+    return { error: "Unauthorized" };
+  }
 
   const rangeStart = parseISO(from);
   const rangeEnd = parseISO(to);

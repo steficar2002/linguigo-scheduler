@@ -22,6 +22,7 @@ export type TeacherStudent = {
   status: StudentStatus;
   duration_minutes: number | null;
   classes_per_week: number | null;
+  classes_remaining?: number;
   alert: string | null;
   teacher_id: string | null;
   username?: string;
@@ -105,6 +106,7 @@ export function MyStudentsPanel({
               <TableHead>Status</TableHead>
               <TableHead>Duration</TableHead>
               <TableHead>Classes/week</TableHead>
+              <TableHead>Classes left</TableHead>
               <TableHead>Alert</TableHead>
               <TableHead className="text-right">Details</TableHead>
             </TableRow>
@@ -112,7 +114,7 @@ export function MyStudentsPanel({
           <TableBody>
             {students.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground">
+                <TableCell colSpan={7} className="text-muted-foreground">
                   No students match your filters.
                 </TableCell>
               </TableRow>
@@ -131,6 +133,7 @@ export function MyStudentsPanel({
                       : "—"}
                   </TableCell>
                   <TableCell>{student.classes_per_week ?? "—"}</TableCell>
+                  <TableCell>{student.classes_remaining ?? 0}</TableCell>
                   <TableCell className="max-w-64 truncate">
                     {student.alert ?? "—"}
                   </TableCell>

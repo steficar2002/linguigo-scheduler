@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format, startOfDay } from "date-fns";
 import { toast } from "sonner";
@@ -23,7 +23,8 @@ import {
   ClassTimeFields,
 } from "@/components/schedule/class-time-fields";
 import { ClassOutcomeActions } from "@/components/schedule/class-outcome-actions";
-import { isDayTodayOrPast } from "@/lib/class-outcomes";
+import { StudentPicker } from "@/components/schedule/student-picker";
+import { isDayTodayOrPast, OUTCOME_LABELS } from "@/lib/class-outcomes";
 import { useDisplayTimezone } from "@/components/schedule/timezone-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,8 @@ type DayDetailDialogProps = {
   onReschedule: (formData: FormData) => Promise<{ error?: string } | void>;
   onApproveRequest: (requestId: string) => Promise<{ error?: string } | void>;
   onDenyRequest: (requestId: string) => Promise<{ error?: string } | void>;
+  canDelete?: boolean;
+  canReschedule?: boolean;
 };
 
 export function DayDetailDialog({
@@ -69,6 +72,8 @@ export function DayDetailDialog({
   onReschedule,
   onApproveRequest,
   onDenyRequest,
+  canDelete = true,
+  canReschedule = true,
 }: DayDetailDialogProps) {
   const router = useRouter();
   const timezone = useDisplayTimezone();
@@ -77,6 +82,12 @@ export function DayDetailDialog({
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState(teacherId);
+
+  useEffect(() => {
+    setSelectedTeacherId(showTeacherPicker ? "" : teacherId);
+    setAdding(false);
+    setRepeatWeekly(false);
+  }, [day, teacherId, showTeacherPicker]);
 
   if (!day) return null;
 
@@ -95,6 +106,11 @@ export function DayDetailDialog({
 
     if (!effectiveTeacherId) {
       toast.error("Please select a teacher.");
+      return;
+    }
+
+    if (!String(formData.get("student_id") ?? "")) {
+      toast.error("Please select a student.");
       return;
     }
 
@@ -146,6 +162,7 @@ export function DayDetailDialog({
     );
     setAdding(false);
     setRepeatWeekly(false);
+    router.refresh();
     onClose();
   }
 
@@ -262,11 +279,12 @@ export function DayDetailDialog({
                               timezone
                             )}
                           </p>
-                          <p className="text-xs capitalize text-muted-foreground">
-                            {classItem.outcome}
+                          <p className="text-xs text-muted-foreground">
+                            {OUTCOME_LABELS[classItem.outcome]}
                           </p>
                         </div>
                         <div className="flex shrink-0 gap-1">
+                          {canReschedule ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -274,6 +292,8 @@ export function DayDetailDialog({
                           >
                             Reschedule
                           </Button>
+                          ) : null}
+                          {canDelete ? (
                           <Button
                             size="sm"
                             variant="destructive"
@@ -281,6 +301,7 @@ export function DayDetailDialog({
                           >
                             Remove
                           </Button>
+                          ) : null}
                         </div>
                       </div>
 
@@ -363,22 +384,7 @@ export function DayDetailDialog({
                     </select>
                   </div>
                 ) : null}
-                <div className="space-y-2">
-                  <Label htmlFor="student_id">Student</Label>
-                  <select
-                    id="student_id"
-                    name="student_id"
-                    required
-                    className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                  >
-                    <option value="">Select student</option>
-                    {students.map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {student.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <StudentPicker students={students} />
                 <div className="space-y-2">
                   <Label htmlFor="course_type_id">Course type</Label>
                   <select
@@ -396,29 +402,6 @@ export function DayDetailDialog({
                   </select>
                 </div>
                 <ClassTimeFields day={scheduleDay} idPrefix="create_" />
-                {showOutcomeOnCreate ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="initial_outcome">Outcome</Label>
-                    <select
-                      id="initial_outcome"
-                      name="initial_outcome"
-                      defaultValue="scheduled"
-                      className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                    >
-                      <option value="scheduled">Scheduled (mark later)</option>
-                      <option value="completed">Successful</option>
-                      <option value="missed">Missed</option>
-                    </select>
-                    <p className="text-xs text-muted-foreground">
-                      Successful or missed only applies if the class time has already passed.
-                    </p>
-                  </div>
-                ) : null}
-                <div className="space-y-2">
-                  <Label htmlFor="material">PDF (optional)</Label>
-                  <Input id="material" name="material" type="file" accept="application/pdf" />
-                </div>
-                {!isPastDay ? (
                 <div className="space-y-3 rounded-lg border border-border/60 bg-muted/40 p-3">
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -427,7 +410,7 @@ export function DayDetailDialog({
                       onChange={(event) => setRepeatWeekly(event.target.checked)}
                       className="size-4 rounded border-input accent-primary"
                     />
-                    <span>Repeat every week for</span>
+                    <span>Repeat every week</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <Input
@@ -445,7 +428,29 @@ export function DayDetailDialog({
                     </Label>
                   </div>
                 </div>
+                {showOutcomeOnCreate ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="initial_outcome">Outcome</Label>
+                    <select
+                      id="initial_outcome"
+                      name="initial_outcome"
+                      defaultValue="scheduled"
+                      className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                    >
+                      <option value="scheduled">Scheduled (mark later)</option>
+                      <option value="completed">Successful</option>
+                      <option value="canceled_on_time">Canceled on time</option>
+                      <option value="late_cancel">Late cancel</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Only applies if the class time has already passed.
+                    </p>
+                  </div>
                 ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="material">PDF (optional)</Label>
+                  <Input id="material" name="material" type="file" accept="application/pdf" />
+                </div>
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1">
                     {repeatWeekly && !isPastDay ? "Schedule classes" : "Add class"}

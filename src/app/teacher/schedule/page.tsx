@@ -1,17 +1,19 @@
 import { Suspense } from "react";
 import { addDays } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
-import { getUser } from "@/lib/auth";
+import { getProfile } from "@/lib/auth";
 import { parseWeekParam } from "@/lib/schedule";
+import { getTeacherStats } from "@/lib/teacher-stats";
 import { TeacherSchedule } from "@/components/teacher/teacher-schedule";
-import type { ScheduleClass, ClassScheduleEventWithRelations, RescheduleRequest } from "@/lib/types/database";
+import type { CourseType, ScheduleClass, ClassScheduleEventWithRelations, RescheduleRequest, Student } from "@/lib/types/database";
 
 type PageProps = {
   searchParams: Promise<{ week?: string }>;
 };
 
 export default async function TeacherSchedulePage({ searchParams }: PageProps) {
-  const userId = await getUser();
+  const profile = await getProfile();
+  const userId = profile?.id;
   const { week } = await searchParams;
   const supabase = await createClient();
 
@@ -24,6 +26,8 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
     { data: calendarClasses },
     { data: events },
     { data: pendingRequests },
+    { data: students },
+    { data: courseTypes },
   ] = await Promise.all([
     supabase
       .from("classes")
@@ -55,6 +59,8 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
       .select("*")
       .eq("teacher_id", userId!)
       .eq("status", "pending"),
+    supabase.from("students").select("id, full_name").order("full_name"),
+    supabase.from("course_types").select("id, name").order("name"),
   ]);
 
   const classesWithUrls: ScheduleClass[] = await Promise.all(
@@ -81,6 +87,8 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
     })
   );
 
+  const stats = await getTeacherStats(userId!, Number(profile?.salary_per_hour ?? 0));
+
   return (
     <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}>
       <TeacherSchedule
@@ -88,6 +96,11 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
         calendarClasses={calendarWithUrls}
         events={(events ?? []) as ClassScheduleEventWithRelations[]}
         pendingRequests={(pendingRequests ?? []) as RescheduleRequest[]}
+        students={(students ?? []) as Student[]}
+        courseTypes={(courseTypes ?? []) as CourseType[]}
+        teacherId={userId!}
+        stats={stats}
+        salaryPerHour={Number(profile?.salary_per_hour ?? 0)}
       />
     </Suspense>
   );

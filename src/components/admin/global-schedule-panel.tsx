@@ -81,7 +81,7 @@ function GlobalCalendarSection({
         allClasses={allClasses}
         students={students}
         courseTypes={courseTypes}
-        teacherId={dayClasses[0]?.teacher_id ?? teachers[0]?.id ?? ""}
+        teacherId=""
         teachers={teacherOptions}
         showTeacherPicker
         pendingRequests={pendingRequests.filter((request) =>

@@ -204,3 +204,26 @@ export async function deactivateTeacherAction(formData: FormData) {
   revalidatePath("/admin/teachers");
   return { success: true };
 }
+
+export async function reactivateTeacherAction(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+
+  if (!id) {
+    return { error: "Teacher ID is required." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ is_active: true })
+    .eq("id", id)
+    .eq("role", "teacher");
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/teachers");
+  revalidatePath(`/admin/teachers/${id}`);
+  return { success: true };
+}

@@ -9,7 +9,10 @@ import {
   toTimeInputValue,
   type DisplayTimezone,
 } from "@/lib/timezone";
-import { useDisplayTimezone } from "@/components/schedule/timezone-toggle";
+import {
+  TimezoneToggle,
+  useDisplayTimezone,
+} from "@/components/schedule/timezone-toggle";
 
 type ClassTimeFieldsProps = {
   day: Date;
@@ -43,6 +46,10 @@ export function ClassTimeFields({
     <>
       <input type="hidden" name="display_timezone" value={timezone} />
       <input type="hidden" name="class_date" value={day.toISOString()} />
+      <div className="flex items-center justify-between gap-3">
+        <Label>Time zone</Label>
+        <TimezoneToggle />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}start_time`}>Start time</Label>

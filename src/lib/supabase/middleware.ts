@@ -22,21 +22,32 @@ export async function updateSession(request: NextRequest) {
           );
         },
       },
+      global: {
+        fetch: (input, init) =>
+          fetch(input, {
+            ...init,
+            signal: AbortSignal.timeout(4000),
+          }),
+      },
     }
   );
 
-  const { data } = await supabase.auth.getClaims();
-  const userId = data?.claims?.sub ?? null;
+  try {
+    const { data } = await supabase.auth.getClaims();
+    const userId = data?.claims?.sub ?? null;
 
-  let role: string | null = null;
-  if (userId) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .single();
-    role = profile?.role ?? null;
+    let role: string | null = null;
+    if (userId) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .single();
+      role = profile?.role ?? null;
+    }
+
+    return { supabaseResponse, userId, role };
+  } catch {
+    return { supabaseResponse, userId: null, role: null };
   }
-
-  return { supabaseResponse, userId, role };
 }

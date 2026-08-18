@@ -223,6 +223,17 @@ export function StudentProfileEditor({
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="classes_remaining">Classes left</Label>
+                <Input
+                  id="classes_remaining"
+                  name="classes_remaining"
+                  type="number"
+                  min={0}
+                  step={1}
+                  defaultValue={student.classes_remaining ?? 0}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="alert">Alert</Label>
                 <Input id="alert" name="alert" defaultValue={student.alert ?? ""} />
               </div>

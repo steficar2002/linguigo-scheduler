@@ -37,6 +37,10 @@ const studentSchema = z.object({
   ),
   agent_commission: nullableText,
   alert: nullableText,
+  classes_remaining: z.preprocess(
+    (value) => (value === "" || value === null ? 0 : value),
+    z.coerce.number().int().min(0, "Classes left cannot be negative."),
+  ),
   email: z.string().trim().email("Enter a valid email address.").or(z.literal("")).transform((value) => value || null),
   notes: nullableText,
 });
@@ -52,6 +56,7 @@ function studentInput(formData: FormData) {
     classes_per_week: formData.get("classes_per_week") ?? "",
     agent_commission: formData.get("agent_commission") ?? "",
     alert: formData.get("alert") ?? "",
+    classes_remaining: formData.get("classes_remaining") ?? "0",
     email: formData.get("email") ?? "",
     notes: formData.get("notes") ?? "",
   };

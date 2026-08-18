@@ -37,7 +37,7 @@ export default async function TeacherStudentPage({ params }: PageProps) {
   const { data: student } = await supabase
     .from("students")
     .select(
-      "id, full_name, status, duration_minutes, classes_per_week, alert, teacher_id, notes",
+      "id, full_name, status, duration_minutes, classes_per_week, classes_remaining, alert, teacher_id, notes",
     )
     .eq("id", studentId)
     .eq("teacher_id", userId!)
@@ -92,6 +92,10 @@ export default async function TeacherStudentPage({ params }: PageProps) {
             <p className="mt-1 font-medium">
               {studentDetail.classes_per_week ?? "Not set"}
             </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Classes left</p>
+            <p className="mt-1 font-medium">{studentDetail.classes_remaining ?? 0}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Alert</p>

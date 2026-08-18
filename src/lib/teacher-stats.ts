@@ -6,6 +6,7 @@ import {
   subDays,
 } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
+import { payableHours } from "@/lib/class-outcomes";
 import type { ClassOutcome, TeacherStats, TeacherStatsPeriod } from "@/lib/types/database";
 
 type ClassRow = {
@@ -14,19 +15,13 @@ type ClassRow = {
   ends_at: string;
 };
 
-function classDurationHours(startsAt: string, endsAt: string): number {
-  const ms = new Date(endsAt).getTime() - new Date(startsAt).getTime();
-  if (ms <= 0) return 0;
-  return ms / (1000 * 60 * 60);
-}
-
 function calculatePayment(
-  completedClasses: ClassRow[],
+  classes: ClassRow[],
   salaryPerHour: number
 ): number {
-  return completedClasses.reduce(
+  return classes.reduce(
     (total, row) =>
-      total + classDurationHours(row.starts_at, row.ends_at) * salaryPerHour,
+      total + payableHours(row.outcome, row.starts_at, row.ends_at) * salaryPerHour,
     0
   );
 }
@@ -42,14 +37,18 @@ function aggregatePeriod(
     return startsAt >= rangeStart && startsAt <= rangeEnd;
   });
 
-  const completed = inRange.filter((row) => row.outcome === "completed");
-  const missed = inRange.filter((row) => row.outcome === "missed").length;
+  const successful = inRange.filter((row) => row.outcome === "completed");
+  const canceledOnTime = inRange.filter(
+    (row) => row.outcome === "canceled_on_time" || row.outcome === "missed"
+  ).length;
+  const lateCancel = inRange.filter((row) => row.outcome === "late_cancel").length;
 
   return {
     total: inRange.length,
-    successful: completed.length,
-    missed,
-    payment: calculatePayment(completed, salaryPerHour),
+    successful: successful.length,
+    canceledOnTime,
+    lateCancel,
+    payment: calculatePayment(inRange, salaryPerHour),
   };
 }
 

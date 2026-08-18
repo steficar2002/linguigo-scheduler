@@ -51,7 +51,7 @@ export default async function TeacherStudentsPage({
   let query = supabase
     .from("students")
     .select(
-      "id, full_name, status, duration_minutes, classes_per_week, alert, teacher_id, username",
+      "id, full_name, status, duration_minutes, classes_per_week, classes_remaining, alert, teacher_id, username",
     )
     .eq("teacher_id", userId!)
     .order("full_name");

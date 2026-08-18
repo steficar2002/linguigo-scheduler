@@ -156,9 +156,12 @@ export function TwoWeekCalendar({
                         "truncate rounded-md px-1.5 py-1 text-[10px] leading-tight",
                         pendingSet.has(classItem.id)
                           ? "bg-red-50 ring-1 ring-red-200"
-                          : classItem.outcome === "missed"
+                          : classItem.outcome === "canceled_on_time" ||
+                              classItem.outcome === "missed"
                             ? "bg-amber-50 ring-1 ring-amber-200"
-                            : classItem.outcome === "completed" &&
+                            : classItem.outcome === "late_cancel"
+                              ? "bg-orange-50 ring-1 ring-orange-200"
+                              : classItem.outcome === "completed" &&
                                 parseISO(classItem.ends_at) < new Date()
                               ? "bg-emerald-50/80"
                               : "bg-primary/5",

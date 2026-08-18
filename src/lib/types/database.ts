@@ -1,6 +1,11 @@
 export type UserRole = "admin" | "teacher";
 
-export type ClassOutcome = "scheduled" | "completed" | "missed";
+export type ClassOutcome =
+  | "scheduled"
+  | "completed"
+  | "canceled_on_time"
+  | "late_cancel"
+  | "missed";
 
 export type StudentStatus = "active" | "paused" | "atx" | "ex" | "refunded";
 
@@ -31,6 +36,7 @@ export type Student = {
   classes_per_week: number | null;
   agent_commission: string | null;
   alert: string | null;
+  classes_remaining: number;
   username: string;
   password: string;
   created_at: string;
@@ -123,7 +129,8 @@ export type TeacherWithPendingCount = Profile & {
 export type TeacherStatsPeriod = {
   total: number;
   successful: number;
-  missed: number;
+  canceledOnTime: number;
+  lateCancel: number;
   payment: number;
 };
 

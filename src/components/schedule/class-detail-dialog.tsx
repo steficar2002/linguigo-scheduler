@@ -15,6 +15,7 @@ import {
   ClassTimeFields,
 } from "@/components/schedule/class-time-fields";
 import { ClassOutcomeActions } from "@/components/schedule/class-outcome-actions";
+import { OUTCOME_LABELS } from "@/lib/class-outcomes";
 import { useDisplayTimezone } from "@/components/schedule/timezone-toggle";
 import { formatTimeRangeInTimezone } from "@/lib/timezone";
 import { hasOverlapOnDay } from "@/lib/schedule";
@@ -149,7 +150,7 @@ export function ClassDetailDialog({
               </p>
               <p>
                 <span className="text-muted-foreground">Status:</span>{" "}
-                <span className="capitalize">{classItem.outcome}</span>
+                <span>{OUTCOME_LABELS[classItem.outcome]}</span>
               </p>
             </div>
 

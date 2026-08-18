@@ -76,6 +76,18 @@ function CreateStudentForm({
         <Input id="email" name="email" type="email" />
       </div>
       <div className="space-y-2">
+        <Label htmlFor="classes_remaining">Classes left</Label>
+        <Input
+          id="classes_remaining"
+          name="classes_remaining"
+          type="number"
+          min={0}
+          step={1}
+          defaultValue={0}
+          required
+        />
+      </div>
+      <div className="space-y-2">
         <Label htmlFor="notes">Notes (optional)</Label>
         <Textarea id="notes" name="notes" />
       </div>
@@ -183,6 +195,7 @@ export function StudentsPanel({
               <TableHead>Price</TableHead>
               <TableHead>Teacher pay</TableHead>
               <TableHead>Classes/week</TableHead>
+              <TableHead>Classes left</TableHead>
               <TableHead>Alert</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -190,7 +203,7 @@ export function StudentsPanel({
           <TableBody>
             {students.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-muted-foreground">
+                <TableCell colSpan={10} className="text-muted-foreground">
                   No students yet.
                 </TableCell>
               </TableRow>
@@ -210,6 +223,7 @@ export function StudentsPanel({
                   <TableCell>{formatMoney(student.price_paid)}</TableCell>
                   <TableCell>{formatMoney(teacherPay(student))}</TableCell>
                   <TableCell>{student.classes_per_week ?? "—"}</TableCell>
+                  <TableCell>{student.classes_remaining ?? 0}</TableCell>
                   <TableCell className="max-w-48 truncate">{student.alert ?? "—"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
