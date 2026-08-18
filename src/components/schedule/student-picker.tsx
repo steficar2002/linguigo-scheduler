@@ -5,13 +5,15 @@ import type { Student } from "@/lib/types/database";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+type StudentOption = Pick<Student, "id" | "full_name">;
+
 type StudentPickerProps = {
-  students: Pick<Student, "id" | "full_name">[];
+  students: StudentOption[];
   name?: string;
   required?: boolean;
 };
 
-function sortStudents(students: Pick<Student, "id" | "full_name">[]) {
+function sortStudents(students: StudentOption[]) {
   return students.slice().sort((a, b) => {
     if (a.full_name === "Group class") return -1;
     if (b.full_name === "Group class") return 1;
@@ -37,7 +39,7 @@ export function StudentPicker({
     );
   }, [query, sorted]);
 
-  function pick(student: Student) {
+  function pick(student: StudentOption) {
     setSelectedId(student.id);
     setQuery(student.full_name);
     setOpen(false);
