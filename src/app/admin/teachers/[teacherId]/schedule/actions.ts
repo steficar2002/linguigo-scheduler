@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { z } from "zod";
 import { getProfile, requireRole } from "@/lib/auth";
 import { isValidDuration } from "@/lib/class-duration";
@@ -146,10 +146,6 @@ export async function createScheduledClass(formData: FormData) {
   const repeatEnabled = parsed.data.repeat_enabled === "true";
   const baseStart = new Date(parsed.data.starts_at);
 
-  if (repeatEnabled && baseStart < startOfDay(new Date())) {
-    return { error: "Cannot create recurring classes on past days." };
-  }
-
   const totalWeeks = repeatEnabled
     ? Math.min(52, Math.max(2, parsed.data.repeat_weeks ?? 2))
     : 1;
@@ -241,9 +237,8 @@ export async function createScheduledClass(formData: FormData) {
 }
 
 export async function deleteScheduledClass(classId: string) {
-  await requireRole("admin");
-  const admin = await getProfile();
-  if (!admin) return { error: "Unauthorized" };
+  const auth = await requireScheduler();
+  if (!auth.profile) return { error: auth.error };
 
   const supabase = await createClient();
   const { data: classRow } = await supabase
@@ -254,11 +249,22 @@ export async function deleteScheduledClass(classId: string) {
 
   if (!classRow) return { error: "Class not found." };
 
+  if (
+    auth.profile.role === "teacher" &&
+    classRow.teacher_id !== auth.profile.id
+  ) {
+    return { error: "You can only delete your own classes." };
+  }
+
   const { error } = await supabase.from("classes").delete().eq("id", classId);
   if (error) return { error: error.message };
 
   if (classRow.material_path) {
     await removeClassMaterial(classRow.material_path);
+  }
+
+  if (classRow.outcome === "completed") {
+    await applyClassesRemainingDelta(supabase, classRow.student_id, 1);
   }
 
   await logEvent(supabase, {
@@ -269,7 +275,11 @@ export async function deleteScheduledClass(classId: string) {
     course_type_id: classRow.course_type_id,
     old_starts_at: classRow.starts_at,
     old_ends_at: classRow.ends_at,
-    changed_by: admin.id,
+    changed_by: auth.profile.id,
+    note:
+      auth.profile.role === "teacher"
+        ? "Class deleted by teacher"
+        : "Class deleted by admin",
   });
 
   revalidateSchedulePaths(classRow.teacher_id);

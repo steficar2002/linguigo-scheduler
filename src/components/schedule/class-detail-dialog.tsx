@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import type { ScheduleClass } from "@/lib/types/database";
 import {
+  deleteScheduledClass,
   rescheduleClass,
   updateClassMaterial,
 } from "@/app/admin/teachers/[teacherId]/schedule/actions";
@@ -42,7 +43,9 @@ export function ClassDetailDialog({
 }: ClassDetailDialogProps) {
   const router = useRouter();
   const timezone = useDisplayTimezone();
-  const [mode, setMode] = useState<"view" | "reschedule" | "material">("view");
+  const [mode, setMode] = useState<"view" | "reschedule" | "material" | "confirm-delete">(
+    "view"
+  );
   const [pending, setPending] = useState(false);
 
   if (!classItem) return null;
@@ -105,6 +108,22 @@ export function ClassDetailDialog({
     toast.success("Class material updated.");
     setMode("view");
     onClose();
+  }
+
+  async function handleDelete() {
+    setPending(true);
+    const result = await deleteScheduledClass(classItem!.id);
+    setPending(false);
+
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success("Class removed.");
+    setMode("view");
+    onClose();
+    router.refresh();
   }
 
   const day = parseISO(classItem.starts_at);
@@ -186,8 +205,48 @@ export function ClassDetailDialog({
               >
                 {classItem.material_path ? "Change material" : "Add material"}
               </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setMode("confirm-delete")}
+              >
+                Delete
+              </Button>
               <Button size="sm" variant="outline" render={<Link href={`/admin/teachers/${classItem.teacher_id}`} />}>
                 Open teacher profile
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {mode === "confirm-delete" ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to remove{" "}
+              <span className="font-medium text-foreground">
+                {classItem.student?.full_name ?? "this class"}
+              </span>
+              {classItem.course_type?.name
+                ? ` · ${classItem.course_type.name}`
+                : ""}
+              ? This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={pending}
+                onClick={handleDelete}
+              >
+                {pending ? "Deleting…" : "Yes, delete"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => setMode("view")}
+              >
+                Cancel
               </Button>
             </div>
           </div>

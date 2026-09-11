@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import type {
   CourseType,
@@ -79,6 +79,8 @@ export function DayDetailDialog({
   const timezone = useDisplayTimezone();
   const [adding, setAdding] = useState(false);
   const [rescheduling, setRescheduling] = useState<ScheduleClass | null>(null);
+  const [deleting, setDeleting] = useState<ScheduleClass | null>(null);
+  const [deletingPending, setDeletingPending] = useState(false);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState(teacherId);
@@ -93,7 +95,6 @@ export function DayDetailDialog({
 
   const scheduleDay = day;
   const dayLabel = format(scheduleDay, "EEEE, d MMMM yyyy");
-  const isPastDay = scheduleDay < startOfDay(new Date());
   const showOutcomeOnCreate = isDayTodayOrPast(scheduleDay);
   const pendingByClass = new Map(
     pendingRequests.map((request) => [request.class_id, request])
@@ -126,10 +127,9 @@ export function DayDetailDialog({
 
     const startsAt = new Date(times.starts_at);
     const endsAt = new Date(times.ends_at);
-    const repeatWeeks =
-      !isPastDay && repeatWeekly
-        ? Math.min(52, Math.max(2, Number(formData.get("repeat_weeks") || 2)))
-        : 1;
+    const repeatWeeks = repeatWeekly
+      ? Math.min(52, Math.max(2, Number(formData.get("repeat_weeks") || 2)))
+      : 1;
 
     const occurrences = buildWeeklyOccurrences(startsAt, endsAt, repeatWeeks);
     const teacherClasses = allClasses.filter(
@@ -144,7 +144,7 @@ export function DayDetailDialog({
       return;
     }
 
-    if (!isPastDay && repeatWeekly) {
+    if (repeatWeekly) {
       formData.set("repeat_enabled", "true");
       formData.set("repeat_weeks", String(repeatWeeks));
     }
@@ -205,13 +205,18 @@ export function DayDetailDialog({
     onClose();
   }
 
-  async function handleDelete(classId: string) {
-    const result = await onDelete(classId);
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeletingPending(true);
+    const result = await onDelete(deleting.id);
+    setDeletingPending(false);
     if (result?.error) {
       toast.error(result.error);
       return;
     }
     toast.success("Class removed.");
+    setDeleting(null);
+    router.refresh();
   }
 
   async function handleApprove(requestId: string) {
@@ -297,7 +302,7 @@ export function DayDetailDialog({
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleDelete(classItem.id)}
+                            onClick={() => setDeleting(classItem)}
                           >
                             Remove
                           </Button>
@@ -453,7 +458,7 @@ export function DayDetailDialog({
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1">
-                    {repeatWeekly && !isPastDay ? "Schedule classes" : "Add class"}
+                    {repeatWeekly ? "Schedule classes" : "Add class"}
                   </Button>
                   <Button
                     type="button"
@@ -499,6 +504,51 @@ export function DayDetailDialog({
                 Save reschedule
               </Button>
             </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open && !deletingPending) setDeleting(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this class?</DialogTitle>
+          </DialogHeader>
+          {deleting ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to remove{" "}
+                <span className="font-medium text-foreground">
+                  {deleting.student?.full_name ?? "this class"}
+                </span>
+                {deleting.course_type?.name
+                  ? ` · ${deleting.course_type.name}`
+                  : ""}
+                ? This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={deletingPending}
+                  onClick={handleDelete}
+                >
+                  {deletingPending ? "Deleting…" : "Yes, delete"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={deletingPending}
+                  onClick={() => setDeleting(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>

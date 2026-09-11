@@ -85,7 +85,7 @@ export function TeacherSchedule({
             courseTypes={courseTypes}
             teacherId={teacherId}
             pendingRequests={pendingRequests}
-            canDelete={false}
+            canDelete
             canReschedule={false}
             onClose={() => setSelectedDay(null)}
             onCreate={createScheduledClass}
