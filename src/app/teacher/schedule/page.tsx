@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { addDays } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { attachCourseCatalog } from "@/lib/course-types";
 import { parseWeekParam } from "@/lib/schedule";
 import { getTeacherStats } from "@/lib/teacher-stats";
 import { TeacherSchedule } from "@/components/teacher/teacher-schedule";
@@ -64,11 +65,7 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
       .select("id, full_name")
       .or(`teacher_id.eq.${userId},full_name.eq.Group class`)
       .order("full_name"),
-    supabase
-      .from("course_types")
-      .select("id, name, category, sort_order")
-      .order("sort_order")
-      .order("name"),
+    supabase.from("course_types").select("id, name").order("name"),
   ]);
 
   const classesWithUrls: ScheduleClass[] = await Promise.all(
@@ -105,7 +102,7 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
         events={(events ?? []) as ClassScheduleEventWithRelations[]}
         pendingRequests={(pendingRequests ?? []) as RescheduleRequest[]}
         students={(students ?? []) as Student[]}
-        courseTypes={(courseTypes ?? []) as CourseType[]}
+        courseTypes={attachCourseCatalog(courseTypes ?? []) as CourseType[]}
         teacherId={userId!}
         stats={stats}
         salaryPerHour={Number(profile?.salary_per_hour ?? 0)}

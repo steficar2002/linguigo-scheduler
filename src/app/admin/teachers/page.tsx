@@ -2,9 +2,10 @@ import { addDays } from "date-fns";
 import { attachMaterialUrls } from "@/lib/class-materials";
 import { requireRole } from "@/lib/auth";
 import { parseWeekParam } from "@/lib/schedule";
+import { attachCourseCatalog } from "@/lib/course-types";
 import { createClient } from "@/lib/supabase/server";
 import { GlobalSchedulePanel } from "@/components/admin/global-schedule-panel";
-import type { RescheduleRequest, ScheduleClass, TeacherWithPendingCount } from "@/lib/types/database";
+import type { CourseType, RescheduleRequest, ScheduleClass, TeacherWithPendingCount } from "@/lib/types/database";
 
 type PageProps = {
   searchParams: Promise<{ week?: string }>;
@@ -44,7 +45,7 @@ export default async function TeachersPage({ searchParams }: PageProps) {
       .lte("starts_at", rangeEnd.toISOString())
       .order("starts_at"),
     supabase.from("students").select("*").order("full_name"),
-    supabase.from("course_types").select("*").order("sort_order").order("name"),
+    supabase.from("course_types").select("id, name, description").order("name"),
   ]);
 
   const countByTeacher = new Map<string, number>();
@@ -82,7 +83,7 @@ export default async function TeachersPage({ searchParams }: PageProps) {
       classes={visibleClasses}
       allClasses={classesWithMaterials}
       students={students ?? []}
-      courseTypes={courseTypes ?? []}
+      courseTypes={attachCourseCatalog(courseTypes ?? []) as CourseType[]}
       pendingRequests={(pendingRequests ?? []) as RescheduleRequest[]}
     />
   );

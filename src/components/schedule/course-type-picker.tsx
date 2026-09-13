@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CourseType } from "@/lib/types/database";
-import { groupCourseTypes } from "@/lib/course-types";
+import { attachCourseCatalog, groupCourseTypes } from "@/lib/course-types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -28,12 +28,13 @@ export function CourseTypePicker({
 
   const sections = useMemo(() => {
     const term = query.trim().toLowerCase();
+    const cataloged = attachCourseCatalog(courseTypes);
     const matches = !term
-      ? courseTypes
-      : courseTypes.filter(
+      ? cataloged
+      : cataloged.filter(
           (course) =>
             course.name.toLowerCase().includes(term) ||
-            (course.category ?? "").toLowerCase().includes(term)
+            course.category.toLowerCase().includes(term)
         );
     return groupCourseTypes(matches);
   }, [courseTypes, query]);
@@ -84,7 +85,7 @@ export function CourseTypePicker({
             ) : (
               sections.map((section) => (
                 <div key={section.category}>
-                  <p className="sticky top-0 bg-muted px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="sticky top-0 border-b border-border bg-primary/10 px-2.5 py-2 text-sm font-semibold text-foreground">
                     {section.category}
                   </p>
                   {section.courses.map((courseType) => (
