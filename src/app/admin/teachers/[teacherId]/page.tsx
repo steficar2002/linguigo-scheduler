@@ -53,7 +53,7 @@ export default async function TeacherProfilePage({
       .lte("starts_at", rangeEnd.toISOString())
       .order("starts_at"),
     supabase.from("students").select("*").order("full_name"),
-    supabase.from("course_types").select("*").order("name"),
+    supabase.from("course_types").select("*").order("sort_order").order("name"),
     supabase
       .from("class_schedule_events")
       .select(

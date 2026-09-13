@@ -6,6 +6,7 @@ export default async function CourseTypesPage() {
   const { data: courseTypes } = await supabase
     .from("course_types")
     .select("*")
+    .order("sort_order")
     .order("name");
 
   return <CourseTypesPanel courseTypes={courseTypes ?? []} />;

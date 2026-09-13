@@ -13,6 +13,7 @@ import {
   buildWeeklyOccurrences,
   findRecurringOverlap,
   hasOverlapOnDay,
+  isWeeklySeriesMatch,
 } from "@/lib/schedule";
 
 function formRequired(value: FormDataEntryValue | null): string {
@@ -143,14 +144,31 @@ export async function createScheduledClass(formData: FormData) {
     return { error: "You can only add classes for yourself." };
   }
 
+  const supabase = await createClient();
+
+  if (auth.profile.role === "teacher") {
+    const { data: student } = await supabase
+      .from("students")
+      .select("id, teacher_id, full_name")
+      .eq("id", parsed.data.student_id)
+      .single();
+
+    if (
+      !student ||
+      (student.teacher_id !== auth.profile.id &&
+        student.full_name.toLowerCase() !== "group class")
+    ) {
+      return { error: "You can only schedule classes for your students." };
+    }
+  }
+
   const repeatEnabled = parsed.data.repeat_enabled === "true";
   const baseStart = new Date(parsed.data.starts_at);
 
   const totalWeeks = repeatEnabled
-    ? Math.min(52, Math.max(2, parsed.data.repeat_weeks ?? 2))
+    ? Math.min(52, Math.max(2, parsed.data.repeat_weeks ?? 8))
     : 1;
 
-  const supabase = await createClient();
   const baseEnd = new Date(parsed.data.ends_at);
   const occurrences = buildWeeklyOccurrences(baseStart, baseEnd, totalWeeks);
 
@@ -236,7 +254,10 @@ export async function createScheduledClass(formData: FormData) {
   return { success: true, count: created.length };
 }
 
-export async function deleteScheduledClass(classId: string) {
+export async function deleteScheduledClass(
+  classId: string,
+  futureWeeks = false
+) {
   const auth = await requireScheduler();
   if (!auth.profile) return { error: auth.error };
 
@@ -256,34 +277,69 @@ export async function deleteScheduledClass(classId: string) {
     return { error: "You can only delete your own classes." };
   }
 
-  const { error } = await supabase.from("classes").delete().eq("id", classId);
+  let toDelete = [classRow];
+
+  if (futureWeeks) {
+    const { data: candidates } = await supabase
+      .from("classes")
+      .select("*")
+      .eq("teacher_id", classRow.teacher_id)
+      .eq("student_id", classRow.student_id)
+      .eq("course_type_id", classRow.course_type_id)
+      .gte("starts_at", classRow.starts_at);
+
+    toDelete = (candidates ?? []).filter((candidate) =>
+      isWeeklySeriesMatch(classRow, candidate)
+    );
+    if (!toDelete.some((row) => row.id === classRow.id)) {
+      toDelete = [classRow, ...toDelete];
+    }
+  }
+
+  const ids = toDelete.map((row) => row.id);
+  const { error } = await supabase.from("classes").delete().in("id", ids);
   if (error) return { error: error.message };
 
-  if (classRow.material_path) {
-    await removeClassMaterial(classRow.material_path);
+  const completedCount = toDelete.filter(
+    (row) => row.outcome === "completed"
+  ).length;
+  if (completedCount > 0) {
+    await applyClassesRemainingDelta(
+      supabase,
+      classRow.student_id,
+      completedCount
+    );
   }
 
-  if (classRow.outcome === "completed") {
-    await applyClassesRemainingDelta(supabase, classRow.student_id, 1);
-  }
+  const roleNote =
+    auth.profile.role === "teacher"
+      ? "Class deleted by teacher"
+      : "Class deleted by admin";
 
-  await logEvent(supabase, {
-    class_id: classId,
-    teacher_id: classRow.teacher_id,
-    event_type: "cancelled",
-    student_id: classRow.student_id,
-    course_type_id: classRow.course_type_id,
-    old_starts_at: classRow.starts_at,
-    old_ends_at: classRow.ends_at,
-    changed_by: auth.profile.id,
-    note:
-      auth.profile.role === "teacher"
-        ? "Class deleted by teacher"
-        : "Class deleted by admin",
-  });
+  await Promise.all(
+    toDelete.map(async (row) => {
+      if (row.material_path) {
+        await removeClassMaterial(row.material_path);
+      }
+      await logEvent(supabase, {
+        class_id: row.id,
+        teacher_id: row.teacher_id,
+        event_type: "cancelled",
+        student_id: row.student_id,
+        course_type_id: row.course_type_id,
+        old_starts_at: row.starts_at,
+        old_ends_at: row.ends_at,
+        changed_by: auth.profile.id,
+        note:
+          futureWeeks && toDelete.length > 1
+            ? `Removed with ${toDelete.length} weekly classes`
+            : roleNote,
+      });
+    })
+  );
 
   revalidateSchedulePaths(classRow.teacher_id);
-  return { success: true };
+  return { success: true, count: toDelete.length };
 }
 
 export async function rescheduleClass(formData: FormData) {

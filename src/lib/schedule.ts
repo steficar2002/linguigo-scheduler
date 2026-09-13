@@ -101,3 +101,25 @@ export function findRecurringOverlap(
   }
   return null;
 }
+
+export function isWeeklySeriesMatch(
+  base: { starts_at: string; ends_at: string },
+  candidate: { starts_at: string; ends_at: string }
+) {
+  const baseStart = parseISO(base.starts_at);
+  const baseEnd = parseISO(base.ends_at);
+  const start = parseISO(candidate.starts_at);
+  const end = parseISO(candidate.ends_at);
+
+  if (start.getTime() < baseStart.getTime()) return false;
+
+  const durationMatch =
+    end.getTime() - start.getTime() === baseEnd.getTime() - baseStart.getTime();
+  if (!durationMatch) return false;
+
+  return (
+    start.getUTCDay() === baseStart.getUTCDay() &&
+    start.getUTCHours() === baseStart.getUTCHours() &&
+    start.getUTCMinutes() === baseStart.getUTCMinutes()
+  );
+}

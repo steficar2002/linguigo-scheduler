@@ -59,8 +59,16 @@ export default async function TeacherSchedulePage({ searchParams }: PageProps) {
       .select("*")
       .eq("teacher_id", userId!)
       .eq("status", "pending"),
-    supabase.from("students").select("id, full_name").order("full_name"),
-    supabase.from("course_types").select("id, name").order("name"),
+    supabase
+      .from("students")
+      .select("id, full_name")
+      .or(`teacher_id.eq.${userId},full_name.eq.Group class`)
+      .order("full_name"),
+    supabase
+      .from("course_types")
+      .select("id, name, category, sort_order")
+      .order("sort_order")
+      .order("name"),
   ]);
 
   const classesWithUrls: ScheduleClass[] = await Promise.all(

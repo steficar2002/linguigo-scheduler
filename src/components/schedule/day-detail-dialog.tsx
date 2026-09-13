@@ -23,6 +23,7 @@ import {
   ClassTimeFields,
 } from "@/components/schedule/class-time-fields";
 import { ClassOutcomeActions } from "@/components/schedule/class-outcome-actions";
+import { CourseTypePicker } from "@/components/schedule/course-type-picker";
 import { StudentPicker } from "@/components/schedule/student-picker";
 import { isDayTodayOrPast, OUTCOME_LABELS } from "@/lib/class-outcomes";
 import { useDisplayTimezone } from "@/components/schedule/timezone-toggle";
@@ -48,7 +49,10 @@ type DayDetailDialogProps = {
   pendingRequests: RescheduleRequest[];
   onClose: () => void;
   onCreate: (formData: FormData) => Promise<{ error?: string } | void>;
-  onDelete: (classId: string) => Promise<{ error?: string } | void>;
+  onDelete: (
+    classId: string,
+    futureWeeks?: boolean
+  ) => Promise<{ error?: string; count?: number } | void>;
   onReschedule: (formData: FormData) => Promise<{ error?: string } | void>;
   onApproveRequest: (requestId: string) => Promise<{ error?: string } | void>;
   onDenyRequest: (requestId: string) => Promise<{ error?: string } | void>;
@@ -89,6 +93,7 @@ export function DayDetailDialog({
     setSelectedTeacherId(showTeacherPicker ? "" : teacherId);
     setAdding(false);
     setRepeatWeekly(false);
+    setDeleting(null);
   }, [day, teacherId, showTeacherPicker]);
 
   if (!day) return null;
@@ -128,7 +133,7 @@ export function DayDetailDialog({
     const startsAt = new Date(times.starts_at);
     const endsAt = new Date(times.ends_at);
     const repeatWeeks = repeatWeekly
-      ? Math.min(52, Math.max(2, Number(formData.get("repeat_weeks") || 2)))
+      ? Math.min(52, Math.max(2, Number(formData.get("repeat_weeks") || 8)))
       : 1;
 
     const occurrences = buildWeeklyOccurrences(startsAt, endsAt, repeatWeeks);
@@ -144,10 +149,8 @@ export function DayDetailDialog({
       return;
     }
 
-    if (repeatWeekly) {
-      formData.set("repeat_enabled", "true");
-      formData.set("repeat_weeks", String(repeatWeeks));
-    }
+    formData.set("repeat_enabled", repeatWeekly ? "true" : "false");
+    formData.set("repeat_weeks", String(repeatWeeks));
 
     const result = await onCreate(formData);
     if (result?.error) {
@@ -205,16 +208,19 @@ export function DayDetailDialog({
     onClose();
   }
 
-  async function handleDelete() {
+  async function handleDelete(futureWeeks = false) {
     if (!deleting) return;
     setDeletingPending(true);
-    const result = await onDelete(deleting.id);
+    const result = await onDelete(deleting.id, futureWeeks);
     setDeletingPending(false);
     if (result?.error) {
       toast.error(result.error);
       return;
     }
-    toast.success("Class removed.");
+    const count = result?.count ?? 1;
+    toast.success(
+      count > 1 ? `Removed ${count} classes.` : "Class removed."
+    );
     setDeleting(null);
     router.refresh();
   }
@@ -288,7 +294,7 @@ export function DayDetailDialog({
                             {OUTCOME_LABELS[classItem.outcome]}
                           </p>
                         </div>
-                        <div className="flex shrink-0 gap-1">
+                        <div className="flex shrink-0 flex-col items-end gap-1">
                           {canReschedule ? (
                           <Button
                             size="sm"
@@ -390,27 +396,14 @@ export function DayDetailDialog({
                   </div>
                 ) : null}
                 <StudentPicker students={students} />
-                <div className="space-y-2">
-                  <Label htmlFor="course_type_id">Course type</Label>
-                  <select
-                    id="course_type_id"
-                    name="course_type_id"
-                    required
-                    className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                  >
-                    <option value="">Select course type</option>
-                    {courseTypes.map((courseType) => (
-                      <option key={courseType.id} value={courseType.id}>
-                        {courseType.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CourseTypePicker courseTypes={courseTypes} />
                 <ClassTimeFields day={scheduleDay} idPrefix="create_" />
                 <div className="space-y-3 rounded-lg border border-border/60 bg-muted/40 p-3">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
+                      name="repeat_enabled"
+                      value="true"
                       checked={repeatWeekly}
                       onChange={(event) => setRepeatWeekly(event.target.checked)}
                       className="size-4 rounded border-input accent-primary"
@@ -516,28 +509,35 @@ export function DayDetailDialog({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete this class?</DialogTitle>
+            <DialogTitle>Remove class</DialogTitle>
           </DialogHeader>
           {deleting ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Are you sure you want to remove{" "}
+                Remove{" "}
                 <span className="font-medium text-foreground">
                   {deleting.student?.full_name ?? "this class"}
                 </span>
                 {deleting.course_type?.name
                   ? ` · ${deleting.course_type.name}`
                   : ""}
-                ? This cannot be undone.
+                ? You can delete only this class, or this class and matching
+                weekly classes in future weeks. This cannot be undone.
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
                 <Button
                   variant="destructive"
-                  className="flex-1"
                   disabled={deletingPending}
-                  onClick={handleDelete}
+                  onClick={() => handleDelete(false)}
                 >
-                  {deletingPending ? "Deleting…" : "Yes, delete"}
+                  {deletingPending ? "Deleting…" : "This class only"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deletingPending}
+                  onClick={() => handleDelete(true)}
+                >
+                  {deletingPending ? "Deleting…" : "This and future weeks"}
                 </Button>
                 <Button
                   type="button"

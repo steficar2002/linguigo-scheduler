@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import type { CourseType } from "@/lib/types/database";
+import { COURSE_CATEGORY_ORDER, groupCourseTypes } from "@/lib/course-types";
 import {
   createCourseTypeAction,
   deleteCourseTypeAction,
@@ -42,6 +43,22 @@ function CourseTypeForm({
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
         <Input id="name" name="name" defaultValue={courseType?.name} required />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="category">Category</Label>
+        <select
+          id="category"
+          name="category"
+          defaultValue={courseType?.category ?? ""}
+          className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+        >
+          <option value="">Uncategorized</option>
+          {COURSE_CATEGORY_ORDER.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="space-y-2">
         <Label htmlFor="description">Description (optional)</Label>
@@ -120,6 +137,7 @@ export function CourseTypesPanel({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Category</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -127,37 +145,48 @@ export function CourseTypesPanel({
           <TableBody>
             {courseTypes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="text-muted-foreground">
+                <TableCell colSpan={4} className="text-muted-foreground">
                   No course types yet.
                 </TableCell>
               </TableRow>
             ) : (
-              courseTypes.map((courseType) => (
-                <TableRow key={courseType.id}>
-                  <TableCell>{courseType.name}</TableCell>
-                  <TableCell className="max-w-md truncate">
-                    {courseType.description ?? "—"}
+              groupCourseTypes(courseTypes).flatMap((section) => [
+                <TableRow key={`cat-${section.category}`}>
+                  <TableCell
+                    colSpan={4}
+                    className="bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {section.category}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditing(courseType)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(courseType.id)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                </TableRow>,
+                ...section.courses.map((courseType) => (
+                  <TableRow key={courseType.id}>
+                    <TableCell>{courseType.name}</TableCell>
+                    <TableCell>{courseType.category ?? "—"}</TableCell>
+                    <TableCell className="max-w-md truncate">
+                      {courseType.description ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditing(courseType)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDelete(courseType.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )),
+              ])
             )}
           </TableBody>
         </Table>

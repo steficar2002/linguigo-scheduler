@@ -7,12 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 const courseTypeSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
+  category: z.string().optional(),
 });
 
 export async function createCourseTypeAction(formData: FormData) {
   const parsed = courseTypeSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
+    category: formData.get("category"),
   });
 
   if (!parsed.success) {
@@ -23,6 +25,7 @@ export async function createCourseTypeAction(formData: FormData) {
   const { error } = await supabase.from("course_types").insert({
     name: parsed.data.name,
     description: parsed.data.description || null,
+    category: parsed.data.category || null,
   });
 
   if (error) {
@@ -38,6 +41,7 @@ export async function updateCourseTypeAction(formData: FormData) {
   const parsed = courseTypeSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
+    category: formData.get("category"),
   });
 
   if (!id || !parsed.success) {
@@ -50,6 +54,7 @@ export async function updateCourseTypeAction(formData: FormData) {
     .update({
       name: parsed.data.name,
       description: parsed.data.description || null,
+      category: parsed.data.category || null,
     })
     .eq("id", id);
 
